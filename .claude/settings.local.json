@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo build:*)",
+      "Bash(cargo check:*)",
+      "Bash(find:*)",
+      "Bash(cargo clean:*)",
+      "Bash(docker compose:*)",
+      "Bash(podman compose up:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(pkill:*)",
+      "Bash(ss:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(task dev)",
+      "Bash(podman exec:*)",
+      "Bash(podman ps:*)",
+      "Bash(cargo run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(task check:*)",
+      "WebSearch",
+      "Bash(task db:reset:*)",
+      "Bash(task dev:run:*)",
+      "Bash(bunx tsc:*)",
+      "Bash(podman compose ps:*)",
+      "Bash(cargo test:*)",
+      "Bash(bunx playwright test:*)",
+      "Bash(cargo clippy:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:doorstop.readthedocs.io)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(grep:*)",
+      "Bash(task test:backend:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(task ci:*)",
+      "Bash(ps:*)",
+      "Bash(task:*)",
+      "Bash(wc:*)"
+    ]
+  }
+}

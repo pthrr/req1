@@ -1,0 +1,161 @@
+version: "3"
+dotenv: [".env"]
+
+tasks:
+  default:
+    desc: List available tasks
+    cmd: task --list-all
+    silent: true
+
+  # ── Development ──────────────────────────────────────
+  dev:
+    desc: Full dev stack (db + fresh migrate + build + server + frontend)
+    cmds:
+      - task: db
+      - task: db:reset
+      - task: build
+      - task: dev:run
+
+  dev:run:
+    desc: Start server + frontend (server backgrounded, frontend foreground)
+    ignore_error: true
+    cmd: |
+      cargo run -p req1-server &
+      task _wait:server
+      cd frontend && bun run dev --open
+
+  dev:stop:
+    desc: Stop all dev processes and containers
+    cmds:
+      - task: _kill
+      - podman compose down
+
+  # ── Database ─────────────────────────────────────────
+  db:
+    desc: Start PostgreSQL + Redis containers
+    cmd: podman compose up -d
+
+  db:stop:
+    desc: Stop containers
+    cmd: podman compose down
+
+  db:reset:
+    desc: Drop all tables and re-run migrations (fresh start)
+    cmd: cargo run -p migration -- fresh
+
+  db:migrate:
+    desc: Run pending migrations only
+    cmd: cargo run -p migration
+
+  # ── Build / Check / Lint ─────────────────────────────
+  build:
+    desc: Build Rust workspace
+    cmd: cargo build
+
+  check:
+    desc: Type-check backend and frontend
+    deps: [check:backend, check:frontend]
+
+  check:backend:
+    desc: Type-check Rust workspace
+    cmd: cargo check
+
+  check:frontend:
+    desc: Type-check frontend TypeScript
+    dir: frontend
+    cmd: bunx tsc --noEmit
+
+  clippy:
+    desc: Lint Rust code
+    cmd: cargo clippy --all-targets
+
+  fmt:
+    desc: Check formatting
+    cmd: cargo fmt --check
+
+  fmt:fix:
+    desc: Apply formatting
+    cmd: cargo fmt
+
+  # ── Testing ──────────────────────────────────────────
+  test:
+    desc: Run all tests (backend + E2E)
+    cmds:
+      - task: test:backend
+      - task: test:e2e
+
+  test:backend:
+    desc: Run backend tests (unit + integration, requires running DB)
+    cmd: cargo test --workspace -- --test-threads=1
+
+  test:e2e:
+    desc: Full E2E cycle (reset DB, build, start stack, Playwright, cleanup)
+    cmds:
+      - task: _kill
+      - task: db:reset
+      - task: build
+      - defer: { task: _kill }
+      - task: test:e2e:run
+
+  test:e2e:run:
+    desc: Start server + vite, run Playwright
+    cmd: |
+      cargo run -p req1-server &
+      task _wait:server
+      (cd frontend && bun run dev --port 5173) &
+      task _wait:vite
+      cd frontend && bunx playwright test
+
+  # ── Frontend ─────────────────────────────────────────
+  frontend:dev:
+    desc: Start Vite dev server and open browser
+    dir: frontend
+    cmd: bun run dev --open
+
+  frontend:install:
+    desc: Install JS dependencies
+    dir: frontend
+    cmd: bun install
+
+  frontend:build:
+    desc: Production build
+    dir: frontend
+    cmd: bun run build
+
+  # ── CI ───────────────────────────────────────────────
+  ci:
+    desc: Full CI check (fmt + clippy + tsc + backend tests + E2E)
+    cmds:
+      - task: fmt
+      - task: clippy
+      - task: check:frontend
+      - task: test:backend
+      - task: test:e2e
+
+  # ── Internal ─────────────────────────────────────────
+  _wait:server:
+
+    cmd: |
+      printf 'Waiting for server'
+      i=0; while [ $i -lt 60 ]; do
+        curl -sf http://localhost:8080/health/ready >/dev/null 2>&1 && break
+        printf '.'; sleep 0.5; i=$((i + 1))
+      done
+      if [ $i -eq 60 ]; then printf ' timed out!\n'; exit 1; fi
+      printf ' ready!\n'
+
+  _wait:vite:
+
+    cmd: |
+      printf 'Waiting for Vite'
+      i=0; while [ $i -lt 20 ]; do
+        curl -sf http://localhost:5173 >/dev/null 2>&1 && break
+        printf '.'; sleep 0.5; i=$((i + 1))
+      done
+      if [ $i -eq 20 ]; then printf ' timed out!\n'; exit 1; fi
+      printf ' ready!\n'
+
+  _kill:
+
+    ignore_error: true
+    cmd: pkill -f "target/debug/req1-server" 2>/dev/null; pkill -f "vite.*frontend" 2>/dev/null; sleep 0.5
