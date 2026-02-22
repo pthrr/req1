@@ -18,6 +18,9 @@
             clippy
             rust-analyzer
 
+            pkg-config
+            openssl
+
             bun
             go-task
             curl

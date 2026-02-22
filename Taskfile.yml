@@ -11,6 +11,8 @@ tasks:
   dev:
     desc: Full dev stack (db + fresh migrate + build + server + frontend)
     cmds:
+      - task: _kill
+      - task: _clean:caches
       - task: db
       - task: db:reset
       - task: build
@@ -18,26 +20,27 @@ tasks:
 
   dev:run:
     desc: Start server + frontend (server backgrounded, frontend foreground)
-    ignore_error: true
     cmd: |
       cargo run -p req1-server &
-      task _wait:server
-      cd frontend && bun run dev --open
+      task _wait:server || exit 1
+      cd frontend && bun run dev --open || true
 
   dev:stop:
     desc: Stop all dev processes and containers
     cmds:
       - task: _kill
-      - podman compose down
+      - docker compose down
 
   # ── Database ─────────────────────────────────────────
   db:
     desc: Start PostgreSQL + Redis containers
-    cmd: podman compose up -d
+    cmds:
+      - docker compose down --remove-orphans
+      - docker compose up -d
 
   db:stop:
     desc: Stop containers
-    cmd: podman compose down
+    cmd: docker compose down
 
   db:reset:
     desc: Drop all tables and re-run migrations (fresh start)
@@ -137,11 +140,11 @@ tasks:
 
     cmd: |
       printf 'Waiting for server'
-      i=0; while [ $i -lt 60 ]; do
+      i=0; while [ $i -lt 240 ]; do
         curl -sf http://localhost:8080/health/ready >/dev/null 2>&1 && break
-        printf '.'; sleep 0.5; i=$((i + 1))
+        printf '.'; sleep 1; i=$((i + 1))
       done
-      if [ $i -eq 60 ]; then printf ' timed out!\n'; exit 1; fi
+      if [ $i -eq 240 ]; then printf ' timed out!\n'; exit 1; fi
       printf ' ready!\n'
 
   _wait:vite:
@@ -156,6 +159,11 @@ tasks:
       printf ' ready!\n'
 
   _kill:
-
     ignore_error: true
-    cmd: pkill -f "target/debug/req1-server" 2>/dev/null; pkill -f "vite.*frontend" 2>/dev/null; sleep 0.5
+    cmd: pkill -f "target/debug/req1-server" 2>/dev/null; pkill -f "node.*vite" 2>/dev/null; pkill -f "bun run dev" 2>/dev/null; fuser -k 8080/tcp 2>/dev/null; fuser -k 5173/tcp 2>/dev/null; sleep 1
+
+  _clean:caches:
+    desc: Remove user-specific caches that break when switching between container/host
+    ignore_error: true
+    cmd: rm -rf frontend/node_modules/.vite
+

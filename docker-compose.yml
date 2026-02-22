@@ -1,3 +1,5 @@
+name: req1
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -14,6 +16,19 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+
+  dev:
+    build: .devcontainer/
+    profiles: [dev]
+    network_mode: host
+    pid: host
+    command: sleep infinity
+    volumes:
+      - .:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /app
+    environment:
+      DOCKER_HOST: unix:///var/run/docker.sock
 
 volumes:
   pgdata:

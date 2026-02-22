@@ -26,7 +26,7 @@
 | Convention | Detail |
 |------------|--------|
 | **REST / OpenAPI** | All API endpoints specified via OpenAPI. API-first design — UI is a consumer, not the only consumer. |
-| **Containerized deployment** | Docker images for all services. Kubernetes for production, Docker Compose for small teams. |
+| **Containerized deployment** | OCI images for all services. Kubernetes for production, Docker Compose for small teams. Devcontainer for onboarding. |
 | **12-factor app** | Configuration via environment variables. Stateless processes. Backing services as attached resources. |
 | **arc42 + C4** | Architecture documented using arc42 template sections with C4 model diagrams (Mermaid). |
 | **ADR format** | Major decisions recorded as Architecture Decision Records (status, context, decision, consequences). |

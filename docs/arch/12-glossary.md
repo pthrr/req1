@@ -82,7 +82,7 @@
 | **serde** | Rust serialization/deserialization framework. Used across the stack for JSON, YAML, and XML. |
 | **docx-rs** | Rust crate for generating Word (.docx) documents directly. |
 | **clap** | Rust CLI argument parser (v4, derive macros). Powers the req1 command-line tool. |
-| **Docker** | Container runtime. All services packaged as Docker images. |
+| **Docker** | Container runtime. All services packaged as OCI images. Docker Compose for dev services and devcontainer. |
 | **Kubernetes** | Container orchestration platform. Production deployment target with horizontal scaling and health checks. |
 | **mlua** | Rust crate providing safe bindings to Lua 5.4. Powers the embedded scripting engine with sandboxing. |
 | **sha2** | Rust crate for SHA-256 hashing. Used for content hashing in the roundtrip export format. |

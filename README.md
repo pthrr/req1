@@ -24,6 +24,9 @@ Open-source requirements management tool built to replace IBM DOORS Classic. Mod
 
 ```
 req1/
+├── .devcontainer/
+│   ├── devcontainer.json     # VS Code devcontainer config
+│   └── Dockerfile            # Ubuntu 24.04 + Rust + Bun + Docker CLI
 ├── crates/
 │   ├── req1-server/          # Axum REST API server
 │   │   ├── src/
@@ -55,7 +58,11 @@ req1/
 ├── entity/                   # Sea-ORM entities (21 database models)
 ├── migration/                # Sea-ORM migrations (23 sequential)
 ├── frontend/                 # React SPA (Vite, AG Grid, D3)
-└── docs/                     # Architecture documentation (arc42)
+├── docs/                     # Architecture documentation (arc42)
+├── docker-compose.yml        # PostgreSQL, Redis, devcontainer service
+├── Taskfile.yml              # Dev workflow tasks (task dev, task test, etc.)
+├── flake.nix                 # Nix dev shell (alternative to devcontainer)
+└── .env                      # Environment variables (DB, Redis, server config)
 ```
 
 ## Prerequisites
@@ -64,10 +71,10 @@ req1/
 |------|---------|---------|
 | Rust (stable) | Backend compilation | [rustup.rs](https://rustup.rs) |
 | Bun | JS runtime, package manager | [bun.sh](https://bun.sh) |
-| Podman (or Docker) | PostgreSQL + Redis containers | [podman.io](https://podman.io) |
+| Docker | PostgreSQL + Redis containers | [docs.docker.com](https://docs.docker.com/get-docker/) |
 | Task | Task runner | [taskfile.dev](https://taskfile.dev) |
 
-Or use the Nix flake: `nix develop`
+Or use the Nix flake (`nix develop`) or the devcontainer (see below).
 
 ## Quick Start
 
@@ -75,8 +82,9 @@ Or use the Nix flake: `nix develop`
 # 1. Clone and enter the repository
 git clone <repo-url> && cd req1
 
-# 2. (Nix users) Enter the dev shell
-nix develop
+# 2. Enter a dev environment (pick one)
+nix develop          # Option A: Nix flake
+#                    # Option B: Open in devcontainer (see below)
 
 # 3. Install frontend dependencies
 task frontend:install
@@ -86,6 +94,26 @@ task dev
 ```
 
 This starts PostgreSQL + Redis containers, runs all migrations (fresh DB), builds the Rust workspace, starts the API server on `http://localhost:8080`, and opens the Vite dev server on `http://localhost:5173`.
+
+### Devcontainer
+
+If you can't or don't want to install dependencies natively, use the devcontainer instead. It ships with Rust, Bun, go-task, and Docker CLI pre-installed — no Nix required.
+
+**VS Code:** Open the repo, run "Reopen in Container", then open a terminal.
+
+**CLI:**
+
+```bash
+docker compose --profile dev run --rm dev bash
+```
+
+Then run:
+
+```bash
+task dev
+```
+
+The container uses `network_mode: host` and `pid: host`, and mounts the Docker socket, so `.env` and `task db` work unchanged. VS Code auto port forwarding is disabled (redundant with host networking).
 
 ## Development
 
@@ -165,8 +193,8 @@ PostgreSQL 16. Migrations are managed by Sea-ORM and run automatically on server
 | E2E tests | Playwright |
 | Database | PostgreSQL 16 |
 | Cache | Redis 7 |
-| Containers | Podman Compose |
-| Dev shell | Nix flake |
+| Containers | Docker Compose |
+| Dev shell | Nix flake / Devcontainer |
 | Task runner | Task (go-task) |
 
 ## API Reference
@@ -391,7 +419,7 @@ cargo build -p req1-cli
 # Binary: target/debug/req1
 ```
 
-Configuration: `--url` flag or `REQ1_URL` env var (default: `http://localhost:3000`).
+Configuration: `--url` flag or `REQ1_URL` env var (default: `http://localhost:8080`).
 
 ### List Resources
 

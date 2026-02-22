@@ -32,7 +32,7 @@
 | Observability | **tracing** + tracing-subscriber | ✅ | Structured logging with env-filter and JSON output |
 | Metrics / tracing | **opentelemetry** | 🔮 | Prometheus metrics, distributed tracing |
 | Reverse proxy | **nginx** | 🔮 | TLS termination, static asset caching, rate limiting, load balancing |
-| Deployment | **Podman Compose** (dev) / **Docker + Kubernetes** (prod) | ✅/🔮 | Dev: Podman Compose for PostgreSQL. Prod: horizontal scaling, health checks, rolling updates |
+| Deployment | **Docker Compose** (dev) / **Kubernetes** (prod) | ✅/🔮 | Dev: Docker Compose for PostgreSQL + devcontainer. Prod: horizontal scaling, health checks, rolling updates |
 | Scripting engine | **mlua** (Lua 5.4) | ✅ | Embedded server-side scripting replacing DOORS Classic DXL. Sandboxed (memory/time limits). Triggers, layout scripts, actions. |
 | OSLC | **Custom module** (JSON-LD + `serde`) | 🔮 | OSLC Core 3.0 service provider, OSLC-RM 2.1 resources. Delegated UI dialogs. Cross-tool traceability. |
 | SysML v2 | **Custom module** (serde_json) | 🔮 | SysML v2 REST API requirements package. Import `RequirementUsage`/`RequirementDefinition`, export req1 modules. |

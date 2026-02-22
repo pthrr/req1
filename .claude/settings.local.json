@@ -36,7 +36,8 @@
       "Bash(task ci:*)",
       "Bash(ps:*)",
       "Bash(task:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(docker ps:*)"
     ]
   }
 }

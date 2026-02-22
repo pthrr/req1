@@ -12,7 +12,7 @@ Architecture documentation follows the [arc42](https://arc42.org) template.
 | [04](arch/04-solution-strategy.md) | Solution Strategy | Tech stack, key approaches, rejected alternatives |
 | [05](arch/05-building-block-view.md) | Building Block View | Container and component diagrams |
 | [06](arch/06-runtime-view.md) | Runtime View | Sequence diagrams for key workflows |
-| [07](arch/07-deployment-view.md) | Deployment View | Kubernetes and Docker Compose deployments |
+| [07](arch/07-deployment-view.md) | Deployment View | Kubernetes and Docker Compose deployments, devcontainer |
 | [08](arch/08-crosscutting-concepts.md) | Crosscutting Concepts | Auth, RBAC, audit, versioning, search, export, observability |
 | [09](arch/09-architecture-decisions.md) | Architecture Decisions | ADRs for all major technology choices |
 | [10](arch/10-quality-requirements.md) | Quality Requirements | Quality tree and concrete scenarios |

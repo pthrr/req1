@@ -113,14 +113,26 @@ volumes:
 - Backup strategy: `pg_dump` cron job + volume snapshots
 - Upgrade path: `docker compose pull && docker compose up -d`
 
-## 7.3 Deployment Topology Comparison
+## 7.3 Devcontainer (Developer Onboarding)
+
+For developers who cannot or prefer not to install dependencies natively, a devcontainer configuration is provided. The `docker-compose.yml` includes a `dev` service behind the `dev` profile using an Ubuntu 24.04 base image with all tooling installed directly (no Nix). A Nix flake is also available for native development.
+
+- **Image:** Ubuntu 24.04 + Rust (rustup) + Bun + go-task + Docker CLI + docker-compose
+- **Network:** `network_mode: host` — `.env` localhost URLs work unchanged, no port mapping needed
+- **PID namespace:** `pid: host` — `task _kill` can manage stale processes across namespaces
+- **Port forwarding:** Disabled (`remote.autoForwardPorts: false`) — redundant with host networking and causes port conflicts if enabled
+- **Socket:** Host Docker socket mounted into the dev container (`/var/run/docker.sock`)
+- **Compose project name:** Fixed to `req1` (via top-level `name:` in `docker-compose.yml`) so container/host invocations always see the same containers
+- **Workflow:** Open devcontainer → `task dev` (or natively: `nix develop` → `task dev`)
+
+## 7.4 Deployment Topology Comparison
 
 | Aspect | Docker Compose | Kubernetes |
-|--------|---------------|------------|
+|--------|----------------------|------------|
 | Users | 5–20 | 20–1000+ |
 | Scaling | Vertical only | Horizontal (HPA) |
 | HA | No | Yes (multi-replica, PG failover) |
 | Complexity | Low | Medium–High |
 | Backup | pg_dump + cron | WAL archiving + PV snapshots |
-| Monitoring | Docker logs | Prometheus + Grafana + OTel |
+| Monitoring | Container logs | Prometheus + Grafana + OTel |
 | TLS | Host reverse proxy or Axum | cert-manager + nginx ingress |

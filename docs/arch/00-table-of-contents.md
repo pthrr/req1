@@ -12,7 +12,7 @@
 | [04](04-solution-strategy.md) | Solution Strategy | Tech stack, key approaches, rejected alternatives |
 | [05](05-building-block-view.md) | Building Block View | Container and component diagrams |
 | [06](06-runtime-view.md) | Runtime View | Sequence diagrams for key workflows |
-| [07](07-deployment-view.md) | Deployment View | Kubernetes and Docker Compose deployments |
+| [07](07-deployment-view.md) | Deployment View | Kubernetes and Docker Compose deployments, devcontainer |
 | [08](08-crosscutting-concepts.md) | Crosscutting Concepts | Auth, RBAC, audit, versioning, search, export, observability |
 | [09](09-architecture-decisions.md) | Architecture Decisions | ADRs for all major technology choices |
 | [10](10-quality-requirements.md) | Quality Requirements | Quality tree and concrete scenarios |

@@ -1,6 +1,8 @@
+use std::net::SocketAddr;
+
 use sea_orm::Database;
 use sea_orm_migration::MigratorTrait;
-use tokio::net::TcpListener;
+use tokio::net::TcpSocket;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -34,7 +36,11 @@ async fn main() -> anyhow::Result<()> {
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http());
 
-    let listener = TcpListener::bind(&config.listen_addr).await?;
+    let addr: SocketAddr = config.listen_addr.parse()?;
+    let socket = TcpSocket::new_v4()?;
+    socket.set_reuseaddr(true)?;
+    socket.bind(addr)?;
+    let listener = socket.listen(1024)?;
     tracing::info!("Listening on {}", config.listen_addr);
     axum::serve(listener, app).await?;
 
