@@ -36,6 +36,22 @@
 | TD13 | **No optional history policy** | Requires module-level config and conditional history insertion. | Phase 2: `history_policy` column on module with `always`/`on_baseline`/`off`. | Partial — module config exists (prefix, separator, digits, required_attributes, default_classification); history_policy field pending |
 | TD14 | **No authentication** | No OIDC/JWT/session auth. All endpoints are unauthenticated. | Phase 2: OIDC + local auth, JWT tokens, RBAC enforcement. | Open |
 | TD15 | **No import/export** | No CSV, XLSX, YAML, or ReqIF import/export. | Phase 1: CSV/YAML export/import. Phase 2: ReqIF. | Open |
+| TD16 | **No lifecycle management** | No configurable state model on objects. PREEvision IREQ gap. | Phase 2: lifecycle model, states, transitions, color-coded display. | Open |
+| TD17 | **No integrated test engineering** | No test case entity, no test execution tracking, no test coverage metrics. PREEvision IREQ gap. | Phase 2: test_case + test_execution entities, coverage dashboard. | Open |
+| TD18 | **No reuse / placeholder mechanism** | Requirements cannot be embedded as synced references across modules. PREEvision IREQ gap. | Phase 2: placeholder objects with source sync + break-link. | Open |
+| TD19 | **No Excel import/export** | Excel is the primary interchange format for stakeholder collaboration. PREEvision and most enterprise tools support it. | Phase 1-2: XLSX export/import with attribute column mapping. | Open |
+| TD20 | **No review voting** | Review packages exist but no formal voting mechanism (approve/reject/abstain per reviewer). PREEvision IREQ gap. | Phase 2: voting entity + dashboard + review-scoped discussion. | Open |
+| TD21 | **No deep links in published reports** | Published HTML has no hyperlinks back to the req1 model. PREEvision reports link back into the tool. | Phase 2: object-level deep links in published output. | Open |
+| TD22 | **No rich text editor** | Requirement body editing is plain text / markdown in AG Grid cells. PREEvision has a full WYSIWYG editor with tables and graphics. | Phase 2: TipTap integration (already planned in solution strategy). | Open |
+| TD23 | **No document view (LiveDoc)** | req1 is purely object/grid-based. Polarion's LiveDoc provides a Word-like document view where paragraphs are traceable objects. Regulated teams need document deliverables. | Phase 2-3: document view mode rendering module objects as continuous formatted document. | Open |
+| TD24 | **No electronic signatures** | No re-authentication on workflow transitions. Required for FDA 21 CFR Part 11 (medical devices, pharma) and similar regulations. Polarion gap. | Phase 2-3: e-signature mechanism with audit records, four-eyes principle. | Open |
+| TD25 | **No Word import/export** | No .docx round-trip. Polarion has rule-based Word import wizard and Word export. Many regulated processes require Word deliverables. | Phase 2: Word export via docx-rs (planned). Word import wizard. | Open |
+| TD26 | **No compliance project templates** | No pre-configured templates for ISO 26262, DO-178C, IEC 62304. Polarion ships these out of the box. | Phase 2-3: template entities with attribute defs, object types, lifecycle models, validation rules. | Open |
+| TD27 | **No script scheduling** | Lua scripts are on-demand only. Polarion supports CRON-based scheduled scripts. | Phase 2: CRON scheduling for Lua scripts, background job runner. | Open |
+| TD28 | **No real-time collaboration** | No presence awareness or concurrent editing indicators. Polarion shows who else is editing. | Phase 2-3: WebSocket presence, editing indicators, save conflict warnings. | Open |
+| TD29 | **No cross-project dashboards** | No configurable dashboard widgets. Polarion has LiveReport pages with drag-and-drop widgets. | Phase 2-3: dashboard entity, widget library, cross-module aggregation. | Open |
+| TD30 | **No dependent enumerations** | Enum fields cannot cascade based on other enum selections. Polarion supports this. | Phase 2-3: dependent enum definitions on attribute_definition. | Open |
+| TD31 | **No form layout designer** | Object editing uses a fixed form layout. Polarion allows per-type form configuration. | Phase 2-3: configurable form layout per object type. | Open |
 
 ## 11.3 Assumptions
 

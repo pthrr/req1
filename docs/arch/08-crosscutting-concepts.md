@@ -554,7 +554,221 @@ Table-based Failure Mode and Effects Analysis:
 | RPN | Computed (S × O × D) |
 | Recommended Action | Linked mitigating requirement |
 
-## 8.16 Optional History Policy
+## 8.16 Lifecycle Management
+
+### Motivation
+
+Enterprise RE tools like PREEvision provide configurable lifecycle state models where requirements transition through defined states (e.g., new → draft → in_review → approved → released). Each state is color-coded for at-a-glance status visibility. req1 needs this to support organizational workflows and compliance processes.
+
+### Data Model
+
+```sql
+lifecycle_model (
+    id              UUID PRIMARY KEY,
+    name            TEXT NOT NULL,          -- e.g., 'Standard Requirement Lifecycle'
+    description     TEXT,
+    created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+lifecycle_state (
+    id              UUID PRIMARY KEY,
+    model_id        UUID NOT NULL REFERENCES lifecycle_model(id),
+    name            TEXT NOT NULL,          -- e.g., 'draft', 'in_review', 'approved'
+    color           TEXT NOT NULL,          -- hex color for UI display
+    is_initial      BOOLEAN DEFAULT false,  -- starting state for new objects
+    is_terminal     BOOLEAN DEFAULT false,  -- objects in this state are considered final
+    sort_order      INTEGER NOT NULL
+);
+
+lifecycle_transition (
+    id              UUID PRIMARY KEY,
+    model_id        UUID NOT NULL REFERENCES lifecycle_model(id),
+    from_state_id   UUID NOT NULL REFERENCES lifecycle_state(id),
+    to_state_id     UUID NOT NULL REFERENCES lifecycle_state(id),
+    name            TEXT,                   -- e.g., 'Submit for Review'
+    required_role   TEXT,                   -- role required to perform this transition
+    UNIQUE (model_id, from_state_id, to_state_id)
+);
+```
+
+### Integration
+
+- Modules reference a `lifecycle_model_id` — all objects in the module follow that lifecycle
+- Object types can override the module default lifecycle
+- Current lifecycle state stored on the object (FK to `lifecycle_state`)
+- State transitions are audited in `object_history` with `change_type = 'state_transition'`
+- Grid UI displays lifecycle state as a color-coded badge
+- Transition buttons available in object detail and grid context menu
+
+### Default Lifecycle
+
+A built-in lifecycle model ships with req1:
+
+| State | Color | Description |
+|-------|-------|-------------|
+| New | Blue | Object just created |
+| Draft | Gray | Under active editing |
+| In Review | Orange | Submitted for formal review |
+| Approved | Green | Accepted by reviewers |
+| Released | Dark Green | Baselined and released |
+| Rejected | Red | Review rejected, needs rework |
+| Deprecated | Light Gray | No longer active but retained for traceability |
+
+## 8.17 Integrated Test Engineering
+
+### Motivation
+
+PREEvision and other enterprise RE tools integrate test management directly with requirements. Test cases linked to requirements via `verifies` links, test execution tracking, and test coverage metrics are essential for compliance (ISO 26262, DO-178C, IEC 62304).
+
+### Data Model
+
+```sql
+test_case (
+    id              UUID PRIMARY KEY,
+    module_id       UUID NOT NULL REFERENCES module(id),
+    title           TEXT NOT NULL,
+    description     TEXT,
+    preconditions   TEXT,
+    steps           JSONB,                -- ordered list of { step, expected_result }
+    object_type_id  UUID REFERENCES object_type(id),
+    created_by      UUID REFERENCES app_user(id),
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+test_execution (
+    id              UUID PRIMARY KEY,
+    test_case_id    UUID NOT NULL REFERENCES test_case(id),
+    executor_id     UUID REFERENCES app_user(id),
+    status          TEXT NOT NULL,         -- 'pass', 'fail', 'blocked', 'not_run'
+    evidence        TEXT,                  -- notes, log references
+    executed_at     TIMESTAMPTZ DEFAULT now()
+);
+```
+
+### Integration
+
+- Test cases are linked to requirements via existing `link` table with link type `verifies`
+- Test coverage metric: % of requirements with at least one linked test case with passing execution
+- Test status dashboard: pass/fail/blocked/not_run breakdown per module
+- Test execution history: track results over time for regression analysis
+
+## 8.18 Reuse and Placeholders
+
+### Motivation
+
+PREEvision supports reusing requirements across modules via placeholders — embedded references that stay in sync with the source object. This avoids duplication while maintaining traceability.
+
+### Mechanism
+
+- A **placeholder** is a special object in the target module that references a source object in another module
+- Placeholder displays the source object's current heading, body, and attributes (read-only)
+- Changes to the source object are automatically reflected in all placeholders
+- Placeholders participate in the target module's link structure and baselines
+- **Break link** action converts a placeholder into an independent copy (severs the sync)
+- Placeholder objects are visually distinguished in the grid (icon + read-only styling)
+
+### Data Model Extension
+
+```sql
+-- On object table
+ALTER TABLE object ADD COLUMN placeholder_source_id UUID REFERENCES object(id);
+-- NULL for native objects, non-NULL for placeholders
+```
+
+## 8.19 Document View (LiveDoc-Style)
+
+### Motivation
+
+Polarion ALM's core innovation is the LiveDoc: a Word-like document where every paragraph is simultaneously a traceable, workflow-controlled database object. Many regulated industries require document deliverables (SRS, SDD, SVP) while engineering teams need object-based traceability. A document view bridges both worlds.
+
+### Approach
+
+- A **document view** renders a module's objects as a continuous, formatted document (like Microsoft Word or Google Docs)
+- Each paragraph/section in the document corresponds to an object in the module
+- Users can switch between **document view** (narrative reading/authoring) and **grid view** (structured filtering/editing)
+- Edits in either view are reflected in the other — same underlying data model
+- Document view supports rich text formatting, embedded images, and tables via TipTap
+
+### Document Outline
+
+- Sidebar navigator showing document heading hierarchy
+- Click-to-scroll navigation within large documents
+- Drag-and-drop reorder of sections (updates object position and parent)
+
+### Export
+
+- Document view exports to Word (.docx) preserving formatting and styles
+- Document view exports to PDF via typst templates
+- Exported documents include deep links back to the req1 model
+
+## 8.20 Electronic Signatures
+
+### Motivation
+
+Regulated industries (medical devices, pharma, avionics) require electronic signatures on critical workflow transitions for compliance with FDA 21 CFR Part 11, EU Annex 11, and similar regulations. This is more rigorous than review voting — it requires re-authentication.
+
+### Mechanism
+
+- Certain workflow transitions can be configured to **require an e-signature**
+- When triggered, the user must re-enter their credentials (username + password) in a confirmation dialog
+- The signature is recorded as an immutable audit record
+
+### Data Model
+
+```sql
+e_signature (
+    id              UUID PRIMARY KEY,
+    object_id       UUID NOT NULL REFERENCES object(id),
+    signer_id       UUID NOT NULL REFERENCES app_user(id),
+    transition_name TEXT NOT NULL,          -- e.g., 'Approve', 'Release'
+    meaning         TEXT NOT NULL,          -- e.g., 'I approve this requirement'
+    signature_hash  TEXT NOT NULL,          -- hash of (user_id + object_id + version + timestamp + meaning)
+    signed_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+### Compliance Features
+
+- **Four-eyes principle**: configurable enforcement that signer ≠ author
+- **Signature meaning**: each transition defines a meaning statement the signer confirms
+- **Immutable records**: signature rows are append-only, never updated or deleted
+- **Audit queryable**: "who signed what, when, and with what meaning" is a simple SQL query
+
+## 8.21 Script Scheduling
+
+### Motivation
+
+Polarion supports CRON-based server-side script execution for automated data quality. req1's Lua scripting engine currently supports only on-demand execution (API trigger). Scheduled scripts enable proactive maintenance.
+
+### Implementation
+
+- Scripts gain an optional `cron_expression` field (e.g., `0 2 * * *` for nightly at 2 AM)
+- A background job runner (tokio task) evaluates CRON expressions and triggers script execution
+- Execution results logged in `script_execution` table with status, duration, output
+- Failed executions generate notifications (webhook or email)
+
+### Use Cases
+
+- Nightly validation of all modules (run built-in + custom Lua rules)
+- Stale suspect link detection (flag links that have been suspect for > N days)
+- Coverage metric computation and caching
+- Automated report generation
+
+## 8.22 Real-Time Collaboration
+
+### Motivation
+
+Polarion shows visual indicators when multiple users edit the same document simultaneously. For a multi-user web tool, presence awareness prevents conflicts and builds confidence.
+
+### Implementation
+
+- **WebSocket channel** per module: when a user opens a module, they join a presence channel
+- **Presence broadcast**: user ID, display name, and cursor/scroll position shared with other participants
+- **Editing indicator**: when a user begins editing an object, an icon appears next to that object for other viewers
+- **Save conflict warning**: if two users edit the same object concurrently, the second saver receives a conflict warning with the option to merge or overwrite
+
+## 8.23 Optional History Policy
 
 ### Motivation
 

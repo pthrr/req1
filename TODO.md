@@ -1,4 +1,4 @@
-# TODO — Gap Analysis vs Doorstop & DOORS Classic
+# TODO — Gap Analysis vs Doorstop, DOORS Classic, PREEvision & Polarion
 
 ## Legend
 
@@ -217,6 +217,177 @@ DOORS has Layout DXL — code in a column definition that computes display value
 
 ---
 
+## Priority 5 — PREEvision IREQ Parity
+
+Features identified from Vector PREEvision's Integrated Requirements Engineering (IREQ) that are missing or incomplete in req1.
+
+### Lifecycle / Workflow Management
+
+PREEvision has a configurable lifecycle state model on requirements (new → draft → in_review → approved → released) with color-coded status and organization-specific workflow transitions.
+
+- [ ] Configurable lifecycle model entity (states + allowed transitions)
+- [ ] Lifecycle state field on objects with color-coded display in grid
+- [ ] State transition enforcement (only allowed transitions)
+- [ ] Lifecycle templates per module or object type
+
+### Use Case Diagrams
+
+PREEvision models system functions from the user perspective with UML use-case diagrams.
+
+- [ ] Evaluate diagramming approach (embedded editor vs external tool link)
+- [ ] Use-case diagram entity linked to requirements
+- [ ] Diagram rendering in UI (e.g., Mermaid or PlantUML)
+
+### Integrated Test Engineering & Management
+
+PREEvision links requirements directly to test cases and tracks test execution. req1 has no test artifact model.
+
+- [ ] Test case entity (linked to requirements via `verifies` link type)
+- [ ] Test execution entity (status, executor, timestamp, evidence)
+- [ ] Test coverage metrics (% requirements with linked passing tests)
+- [ ] Test status dashboard per module
+
+### Reuse / Placeholder Mechanism
+
+PREEvision allows requirements to be reused across modules as placeholders (embedded references that stay in sync with the source).
+
+- [ ] Placeholder / proxy object type (references a source object in another module)
+- [ ] Sync mechanism: placeholder reflects source object's current content
+- [ ] UI: distinguish placeholders from native objects visually
+- [ ] Break-link action to convert placeholder to independent copy
+
+### Excel Import / Export
+
+PREEvision supports Excel as a primary exchange format. Already on Priority 1 implicitly but elevated here.
+
+- [ ] Excel export (XLSX with attribute columns, metadata sheet)
+- [ ] Excel import (map columns to attributes, create/update objects)
+- [ ] Round-trip: preserve object IDs across export → edit → reimport
+
+### Deep Links from Published Reports
+
+PREEvision generates reports with hyperlinks back into the model.
+
+- [ ] Published HTML includes deep links to req1 UI for each object
+- [ ] Anchor-based navigation (object ID in URL fragment)
+
+### Review Voting & Approval Workflow
+
+PREEvision has formal voting projects where stakeholders vote on requirements, with a dedicated chat view for discussion.
+
+- [ ] Voting entity (vote per reviewer per artifact: approve / reject / abstain)
+- [ ] Voting dashboard (aggregated results per review package)
+- [ ] Chat/discussion view scoped to review package (not just per-object comments)
+- [ ] Status transitions on review packages (draft → open → in_review → approved / rejected)
+
+### Rich Text Editor with Tables & Graphics
+
+PREEvision has a full rich text editor with embedded tables and graphics for requirement descriptions.
+
+- [ ] TipTap rich text editor integration (already planned in solution strategy)
+- [ ] Table support in requirement body (TipTap table extension)
+- [ ] Image embedding in requirement body (upload + inline display)
+- [ ] Graphics / diagram embedding (paste or drag-and-drop)
+
+---
+
+## Priority 6 — Polarion ALM Parity
+
+Features identified from Siemens Polarion ALM that are missing or incomplete in req1. Items already covered by PREEvision Priority 5 are not repeated.
+
+### LiveDoc / Document View (Dual Nature)
+
+Polarion's core innovation: LiveDocs are Word-like documents where every paragraph is simultaneously a traceable, workflow-controlled database object. req1 is purely object-based with no document view.
+
+- [ ] Document view entity (LiveDoc equivalent: ordered sequence of objects rendered as a continuous document)
+- [ ] WYSIWYG document editing mode (paragraph = object, preserving traceability)
+- [ ] Switch between document view and grid/object view for the same module
+- [ ] Document outline / navigator sidebar in document mode
+- [ ] Export document view to Word/PDF preserving formatting
+
+### Electronic Signatures (E-Signatures)
+
+Polarion supports FDA 21 CFR Part 11 compliant e-signatures: username + password confirmation on workflow transitions. Required for medical devices and pharma.
+
+- [ ] E-signature mechanism (re-authentication on critical transitions)
+- [ ] Signature audit record (user, timestamp, meaning, signature hash)
+- [ ] E-signature requirement configurable per workflow transition
+- [ ] Four-eyes principle enforcement (signer ≠ author)
+
+### Word Import / Export (Round-Trip)
+
+Polarion has a rule-based import wizard that maps Word paragraphs to requirements and supports export → edit → reimport.
+
+- [ ] Word (.docx) export from module (structured document with styles)
+- [ ] Word import wizard (map headings/paragraphs to object types and attributes)
+- [ ] Round-trip: track object IDs through export → external edit → reimport
+
+### Form Layout Designer
+
+Polarion allows admins to design per-type Work Item forms: which fields appear, in what order, grouped into sections.
+
+- [ ] Configurable object form layout per object type
+- [ ] Form section grouping for attributes
+- [ ] Form layout editor in admin UI
+
+### Dependent Enumerations (Cascading Fields)
+
+Polarion enum field values can depend on another enum field's selection (cascading dropdowns).
+
+- [ ] Dependent enum definitions (parent enum → child enum value filtering)
+- [ ] UI: cascading dropdown behavior in object editor
+
+### Scheduled Scripts (CRON)
+
+Polarion supports server-side scripts that run on configurable CRON schedules for automated validation, report generation, and cleanup.
+
+- [ ] Script scheduling (CRON expression per script)
+- [ ] Scheduled script execution engine (background job runner)
+- [ ] Execution log with status, duration, output
+
+### Save Hooks / Interceptors
+
+Polarion has Java-based hooks that execute before/after saving a Work Item for custom validation, auto-population, and cross-artifact updates.
+
+- [ ] Pre-save / post-save hook framework (extends Lua trigger system)
+- [ ] Hook ordering and priority
+- [ ] Hook failure blocks save with error message
+
+### @Mentions in Comments
+
+Polarion supports @mentioning users in comments with notification delivery.
+
+- [ ] @mention syntax in comments (parse `@username`)
+- [ ] User autocomplete dropdown on `@` input
+- [ ] Notification delivery to mentioned users
+
+### Real-Time Collaboration Awareness
+
+Polarion shows visual indicators when multiple users edit the same document simultaneously.
+
+- [ ] WebSocket-based presence awareness (who else is viewing/editing this module)
+- [ ] Visual indicator for concurrent editors
+- [ ] Conflict warning on concurrent saves
+
+### Cross-Project Dashboards & Reporting
+
+Polarion supports LiveReport pages with drag-and-drop widgets querying across multiple projects.
+
+- [ ] Dashboard entity with configurable widget layout
+- [ ] Cross-module/cross-project data aggregation in widgets
+- [ ] Widget library (coverage chart, suspect link count, lifecycle distribution, test status)
+- [ ] Dashboard export to PDF
+
+### Compliance Project Templates
+
+Polarion ships pre-configured project templates for regulated industries (IEC 62304, ISO 26262, DO-178C, Automotive SPICE).
+
+- [ ] Project template entity (workspace template with pre-configured modules, attribute defs, object types, lifecycle models, scripts)
+- [ ] Built-in templates for ISO 26262, DO-178C, IEC 62304
+- [ ] Template instantiation wizard
+
+---
+
 ## Architecture Notes
 
 ### Lessons from Doorstop
@@ -234,10 +405,34 @@ DOORS has Layout DXL — code in a column definition that computes display value
 4. **Link modules** — treating links as first-class entities enables separate access control and management.
 5. **Impact analysis** is the killer feature of any traceability tool. We have the data, we need the visualization.
 
-### Our Advantages Over Both
+### Lessons from PREEvision IREQ
 
-1. **Modern stack** — Rust (safety, perf), React, PostgreSQL vs Python/Tkinter or legacy C++/Windows-only.
-2. **Server-based with full CRUD web UI** — Doorstop web is read-only. DOORS is desktop-only.
-3. **Structured baseline diffing** — word-level inline diff with attribute comparison. Neither reference has this.
-4. **Lua scripting** — more powerful than Doorstop's validator-only plugins, cleaner than DXL.
-5. **Cross-module named typed links** — better traceability model than Doorstop's single unnamed parent-child links.
+1. **Lifecycle management is table stakes** for enterprise RE tools. PREEvision's configurable state model with color-coded transitions is a core workflow feature, not a nice-to-have.
+2. **Requirements don't stand alone** — PREEvision emphasizes that requirements interact with all other development artifacts. Our link model covers this partially, but placeholders/reuse and test integration go further.
+3. **Integrated test management** — PREEvision treats test engineering as part of the RE workflow, not a separate tool concern. Test cases, execution, and coverage are first-class.
+4. **Excel is the universal interchange** — while ReqIF is important for toolchain interop, Excel is what most stakeholders actually use for review and editing.
+5. **Voting/approval is separate from comments** — PREEvision distinguishes discussion (chat) from formal decisions (votes). Our comment model needs a voting layer on top.
+6. **Reports link back to the model** — published specs in PREEvision are not dead documents; they contain navigable links back into the live model.
+
+### Lessons from Polarion ALM
+
+1. **LiveDoc dual nature is the killer concept** — requirements that are simultaneously document paragraphs and traceable database objects. This bridges the gap between document-centric (Word/PDF deliverables) and object-centric (traceability, filtering, dashboards) workflows. Consider a document view mode for req1 modules.
+2. **E-signatures are mandatory for regulated industries** — FDA 21 CFR Part 11 compliance requires re-authentication on critical transitions (not just click-to-approve). Medical device and pharma customers will require this.
+3. **Word round-trip is as important as Excel** — many regulated processes require Word documents (SRS, SDD, SVP). Import from Word, export to Word, and round-trip without data loss are expected.
+4. **Compliance templates accelerate adoption** — Polarion ships pre-configured project templates for ISO 26262, DO-178C, IEC 62304, Automotive SPICE. Having ready-to-use templates dramatically lowers the barrier to entry for regulated teams.
+5. **Form layout configurability** — different object types need different form layouts. A safety requirement form looks different from a test case form. Admins need to configure this without code.
+6. **Scheduled automation** — CRON-based script execution enables proactive data quality (nightly validation, stale link detection, metric computation). Our Lua engine needs a scheduler.
+7. **Real-time collaboration awareness** — seeing who else is editing the same module prevents conflicts and builds confidence in a multi-user tool.
+8. **Collections (cross-project baseline sets)** — our baseline_sets are per-module; Polarion's Collections span projects and freeze everything for compliance audits.
+
+### Our Advantages Over All Four
+
+1. **Modern stack** — Rust (safety, perf), React, PostgreSQL vs Python/Tkinter, legacy C++/Windows-only, Eclipse RCP (PREEvision), or Java/Jetty (Polarion).
+2. **Lightweight deployment** — single Rust binary + PostgreSQL vs Polarion's heavy Java stack (SVN-backed, requires dedicated server infrastructure).
+3. **Server-based with full CRUD web UI** — Doorstop web is read-only. DOORS is desktop-only. PREEvision is a thick Eclipse client. Polarion's web UI is capable but heavyweight.
+4. **Structured baseline diffing** — word-level inline diff with attribute comparison. Neither Doorstop nor DOORS has this. PREEvision's versioning is model-level. Polarion diffs at field level but not word level.
+5. **Lua scripting** — more powerful than Doorstop's validator-only plugins, cleaner than DXL, more accessible than PREEvision's Java extensions, and lighter than Polarion's Velocity/Java SDK.
+6. **Cross-module named typed links** — better traceability model than Doorstop's single unnamed parent-child links.
+7. **Open source (MIT)** — PREEvision and Polarion are expensive proprietary commercial software. No vendor lock-in, full auditability of the tool itself, no per-seat licensing.
+8. **REST API first** — every operation available via API and CLI. PREEvision requires Java plugins. Polarion's REST API is secondary to its Java SDK.
+9. **MCP / AI-native integration** — planned MCP server enables AI assistants as first-class consumers. Polarion X is Azure-locked; req1's approach is model-agnostic.

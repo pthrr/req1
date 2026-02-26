@@ -26,11 +26,28 @@
 | **Script** | DXL Script | Server-side Lua script for automation. Stored entity with sandboxed execution environment. |
 | **External Link** | N/A | Link where the target is an external URI (OSLC resource) rather than an internal req1 object. |
 | **Roundtrip Package** | N/A | Export format (.req1.json / .req1.xlsx) with content hashes enabling delta detection on reimport. |
+| **Lifecycle** | N/A (PREEvision: Lebenszyklus) | Configurable state model defining the workflow states a requirement passes through (e.g., new → draft → in_review → approved → released). Color-coded in UI. |
+| **Lifecycle Transition** | N/A | Allowed state change within a lifecycle model (e.g., draft → in_review). May require a specific role to execute. |
+| **Test Case** | N/A (PREEvision: Testartefakt) | A test specification linked to requirements via `verifies` link type. Contains title, description, preconditions, and ordered steps with expected results. |
+| **Test Execution** | N/A | Record of a test case run: executor, status (pass/fail/blocked), evidence, timestamp. |
+| **Placeholder** | N/A (PREEvision: Platzhalter) | A proxy object in one module that references and stays in sync with a source object in another module. Read-only in the target module. |
+| **Voting** | N/A (PREEvision: Abstimmung) | Formal decision mechanism on requirements: each reviewer submits approve / reject / abstain per artifact in a review package. |
+| **Document View** | LiveDoc (Polarion) | Word-like rendering of a module's objects as a continuous formatted document. Each paragraph is a traceable object. Dual nature with grid view. |
+| **E-Signature** | E-Signature (Polarion) | Re-authentication (username + password) on critical workflow transitions for regulatory compliance (FDA 21 CFR Part 11). Produces immutable audit record. |
+| **Collection** | Collection (Polarion) | Cross-project grouping of document baselines that can be frozen together for compliance audits. Extends req1's baseline_set concept across projects. |
+| **Compliance Template** | Project Template (Polarion) | Pre-configured project setup with attribute definitions, object types, lifecycle models, validation rules, and document templates for a specific standard (ISO 26262, DO-178C, etc.). |
+| **Dependent Enumeration** | Dependent Enum (Polarion) | Enum field whose available values are filtered based on the selection in another enum field (cascading dropdown). |
+| **Scheduled Script** | Scheduled Job (Polarion) | A Lua script with a CRON expression that executes automatically at defined intervals for proactive data quality and maintenance. |
 
 ## Technical Terms
 
 | Term | Description |
 |------|-------------|
+| **PREEvision** | Vector Informatik's commercial E/E architecture and requirements management tool. Eclipse RCP-based. IREQ (Integrated Requirements Engineering) module provides lifecycle management, test integration, review voting, and ReqIF/Excel interchange. Key competitor for automotive RE. |
+| **IREQ** | Integrated Requirements Engineering. PREEvision's approach where requirements interact with all development artifacts (architecture, test, wiring harness) in a shared model. |
+| **Polarion ALM** | Siemens' commercial Application Lifecycle Management tool. Java/Jetty-based web application with SVN backend. Key innovation is LiveDoc (dual document + object model). Supports e-signatures, compliance templates, variant management (pure::variants), and extensive test management. Key competitor for regulated industries. |
+| **LiveDoc** | Polarion's document concept where a Word-like document is composed of traceable Work Items (database objects). Every paragraph has metadata, workflow, and links while appearing as continuous narrative text. |
+| **FDA 21 CFR Part 11** | US FDA regulation defining criteria for electronic records and electronic signatures. Requires re-authentication for signatures, audit trails, and record immutability. Relevant for medical device and pharmaceutical requirements management. |
 | **ReqIF** | Requirements Interchange Format. OMG standard (v1.2) for exchanging requirements between tools. XML-based. |
 | **OIDC** | OpenID Connect. Authentication protocol built on OAuth 2.0. Used for corporate SSO (Azure AD, Okta, Keycloak). |
 | **RBAC** | Role-Based Access Control. Permissions assigned via roles (admin, editor, reviewer, viewer) scoped to workspaces, projects, or modules. |
@@ -87,6 +104,7 @@
 | **mlua** | Rust crate providing safe bindings to Lua 5.4. Powers the embedded scripting engine with sandboxing. |
 | **sha2** | Rust crate for SHA-256 hashing. Used for content hashing in the roundtrip export format. |
 | **Eclipse Lyo** | Java-based OSLC reference implementation. Used for interoperability testing of req1's OSLC provider/consumer. |
+| **pure::variants** | Variant management tool by pure-systems, integrated into Polarion VARIANTS. Feature-model-based product line engineering for dynamically generating variant-specific artifact sets. |
 
 ## Compliance Standards
 

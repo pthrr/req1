@@ -1,8 +1,18 @@
 # Documentation
 
-Architecture documentation follows the [arc42](https://arc42.org) template.
+## Specification (SRS)
+
+Software requirements specification using RFC 2119 language. Defines *what* the system must do.
+
+| Document | Description |
+|----------|-------------|
+| [spec/README.md](spec/README.md) | Overview, scope, conventions, cross-references to arc42 |
+| [spec/functional.md](spec/functional.md) | 176 functional requirements (FR-xxx) across 11 domains |
+| [spec/certification-support.md](spec/certification-support.md) | 39 certification support requirements (CERT-xxx) for DO-178C, ISO 26262, IEC 62304 |
 
 ## Architecture (arc42)
+
+Architecture documentation follows the [arc42](https://arc42.org) template. Defines *how* the system is built.
 
 | # | Section | Description |
 |---|---------|-------------|
