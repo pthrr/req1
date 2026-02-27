@@ -10,7 +10,7 @@ C4Container
 
     Container_Boundary(req1, "req1 System") {
         Container(spa, "React SPA", "TypeScript, Vite, AG Grid, D3", "Single-page application for requirements authoring, tracing, and review")
-        Container(api, "Axum API", "Rust, Axum, sea-orm, mlua", "REST API server handling business logic and scripting")
+        Container(api, "Axum API", "Rust, Axum, sea-orm, deno_core", "REST API server handling business logic and scripting")
         Container(cli, "req1 CLI", "Rust, clap", "Command-line client for headless automation")
         ContainerDb(pg, "PostgreSQL", "Database", "Requirements, links, history, baselines, FTS indexes, scripts, views, comments")
     }
@@ -88,7 +88,7 @@ req1/
 | `traceability.rs` | Traceability matrix, coverage metrics |
 | `impact.rs` | BFS impact analysis (forward/backward/both) |
 | `scripts.rs` | Script CRUD, test, execute, batch layout |
-| `validation.rs` | Module validation (built-in + Lua rules) |
+| `validation.rs` | Module validation (built-in + JavaScript rules) |
 | `publish.rs` | HTML publishing (minijinja templates) |
 | `views.rs` | Saved view CRUD |
 | `comments.rs` | Comment CRUD + resolve/unresolve |
@@ -105,7 +105,7 @@ req1/
 | `service/module.rs` | Module CRUD, template cloning |
 | `service/link.rs` | Link CRUD, suspect flag detection |
 | `service/baseline.rs` | Baseline creation, word-level diffing |
-| `service/validation_service.rs` | Built-in rules + Lua custom validation |
+| `service/validation_service.rs` | Built-in rules + JavaScript custom validation |
 | `service/publish.rs` | HTML template rendering |
 | `service/view.rs` | Saved view config |
 | `service/comment.rs` | Comment thread management |
@@ -117,7 +117,7 @@ req1/
 | `service/baseline_set.rs` | Baseline set management |
 | `service/workspace.rs` | Workspace CRUD |
 | `service/project.rs` | Project CRUD |
-| `scripting/engine.rs` | Lua 5.4 runtime — sandboxed, triggers/layout/actions |
+| `scripting/engine.rs` | JavaScript (V8) runtime — sandboxed, triggers/layout/actions |
 
 ## 5.3 Level 2 — Axum API Components (Target Architecture)
 
@@ -140,7 +140,7 @@ C4Component
         Component(webhooks, "Webhook Module", "reqwest", "Event dispatch to registered webhook endpoints [planned]")
         Component(oslc, "OSLC Module", "JSON-LD, serde", "OSLC Core 3.0 provider + consumer [planned]")
         Component(sysml, "SysML v2 Module", "serde_json", "Import/export SysML v2 requirement elements [planned]")
-        Component(scripting, "Script Engine", "mlua", "Embedded Lua 5.4 runtime. Triggers, layout scripts, actions. [impl]")
+        Component(scripting, "Script Engine", "deno_core", "Embedded JavaScript (V8) runtime. Triggers, layout scripts, actions. [impl]")
         Component(mcp, "MCP Server", "JSON-RPC", "Model Context Protocol provider [planned]")
         Component(risk, "Risk Module", "sea-orm, sqlx", "Hazard register, risk matrices, FMEA views [planned]")
         Component(roundtrip, "Roundtrip Module", "serde_json, sha2", "Delta-aware export/reimport with content hashing [planned]")
@@ -174,7 +174,7 @@ C4Component
 | `ImpactGraph.tsx` | D3 (force-directed) | SVG graph visualization of link chains |
 | `CoverageWidget.tsx` | React | Coverage bars (upstream/downstream %) |
 | `CommentPanel.tsx` | React | Comment thread per object — add, resolve, delete |
-| `ScriptPanel.tsx` | React | Lua script CRUD — trigger/layout/action types |
+| `ScriptPanel.tsx` | React | JavaScript script CRUD — trigger/layout/action types |
 | `ValidationPanel.tsx` | React | Validation report display (issues list) |
 | `ObjectTypePanel.tsx` | React | Object type CRUD — schemas, required attributes |
 | `ModuleSettings.tsx` | React | Module config: prefix, separator, digits, classification |

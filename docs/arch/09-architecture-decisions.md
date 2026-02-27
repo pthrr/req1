@@ -98,14 +98,14 @@
 | **Decision** | Implement import/export for the **SysML v2 requirements package only** (`RequirementDefinition`, `RequirementUsage`, `SatisfyRequirementUsage`, `VerifyRequirementUsage`). Do not implement other SysML v2 packages (blocks, ports, flows, state machines). Optionally expose a lightweight SysML v2 API endpoint for the requirements subset. |
 | **Consequences** | (+) Focused scope — months, not years. (+) Enables MBSE workflows without full modeling tool complexity. (+) JSON-based format is much simpler than SysML v1 XMI/XML. (+) SysML v2 API compatibility lets modeling tools query req1 directly. (-) SysML v2 standard is still evolving (OMG) — may need updates as the spec finalizes. (-) Traceability relationships in SysML v2 are richer than req1's link types — lossy mapping for non-requirements elements. |
 
-## ADR-11: Lua over JavaScript/Python/WASM for Scripting
+## ADR-11: JavaScript (V8) over Lua/Python/WASM for Scripting
 
 | | |
 |---|---|
 | **Status** | Accepted |
 | **Context** | DOORS Classic users rely heavily on DXL (proprietary scripting) for automation. req1 needs an equivalent. Evaluated: (1) Lua via `mlua`, (2) JavaScript via V8/deno_core, (3) Python via PyO3, (4) WASM plugins, (5) Rhai (Rust-native scripting). |
-| **Decision** | Embed **Lua 5.4** via the `mlua` crate. Expose a `req1.*` API surface to scripts. Sandbox with memory and CPU time limits. No file I/O, no network, no OS calls. |
-| **Consequences** | (+) `mlua` is mature and well-maintained. (+) Lua is lightweight (~200 KB), embeds cleanly in Rust. (+) Familiar syntax — Lua is the most common embedded scripting language (game engines, Redis, nginx). (+) Built-in sandboxing: `mlua` safe mode disables `os`, `io`, `debug` libraries. (+) Fast startup — no JIT warmup needed. (-) Lua is less familiar to systems engineers than Python. (-) No native async — script execution blocks a thread (mitigated by running in a `spawn_blocking` task). (-) String manipulation is less ergonomic than Python. |
+| **Decision** | Embed **JavaScript (V8)** via the `deno_core` crate. Expose a `req1.*` API surface to scripts. Sandbox with memory and CPU time limits. No file I/O, no network, no OS calls. |
+| **Consequences** | (+) `deno_core` provides a production-grade V8 embedding with built-in sandboxing. (+) JavaScript is the most widely known scripting language — lower learning curve for engineers. (+) V8 offers excellent runtime performance with JIT compilation. (+) Rich standard library for string manipulation, JSON handling, and async patterns. (+) `deno_core` sandboxing restricts filesystem, network, and OS access by default. (-) V8 has a larger binary footprint than Lua (~20 MB vs ~200 KB). (-) V8 startup is heavier than Lua (mitigated by isolate reuse and snapshotting). (-) `deno_core` dependency brings a larger transitive dependency tree. |
 
 ## ADR-12: Custom Roundtrip Format with Content Hashing
 

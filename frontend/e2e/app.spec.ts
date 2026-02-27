@@ -467,7 +467,7 @@ test.describe("Scripts Tab", () => {
     // Select layout type
     const typeSelect = page.locator("select").first();
     await typeSelect.selectOption("layout");
-    await page.getByPlaceholder("-- Lua source code").fill("return obj.heading or ''");
+    await page.getByPlaceholder("// JavaScript source code").fill("return obj.heading || ''");
     await page.getByRole("button", { name: "Create Script" }).click();
     await page.waitForTimeout(500);
 

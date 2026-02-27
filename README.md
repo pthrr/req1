@@ -8,8 +8,8 @@ Open-source requirements management tool built to replace IBM DOORS Classic. Mod
 - **Typed attributes** — string, int, float, bool, enum (single/multi), date, rich text, user reference
 - **Directed traceability links** — named typed links (satisfies, derives-from, verifies, etc.) with suspect detection
 - **Immutable baselines** — snapshots with word-level structured diffing
-- **Lua scripting** — triggers (pre_save, pre_delete, validate), layout scripts, actions
-- **Validation** — built-in structural rules + custom Lua rules
+- **JavaScript scripting** — triggers (pre_save, pre_delete, validate), layout scripts, actions
+- **Validation** — built-in structural rules + custom JavaScript rules
 - **Full-text search** — PostgreSQL tsvector with GIN indexes
 - **Impact analysis** — BFS graph traversal with D3 force-directed visualization
 - **Coverage metrics** — upstream/downstream link coverage per module
@@ -41,7 +41,7 @@ req1/
 │   ├── req1-core/            # Business logic (no HTTP concerns)
 │   │   └── src/
 │   │       ├── service/      # 16 service modules (CRUD + business rules)
-│   │       ├── scripting/    # Lua 5.4 engine (triggers, layout, actions)
+│   │       ├── scripting/    # JavaScript engine (V8 via deno_core) (triggers, layout, actions)
 │   │       ├── validation.rs # Built-in validation rules
 │   │       ├── baseline.rs   # Baseline snapshot + word-level diff
 │   │       ├── fingerprint.rs # SHA-256 content fingerprinting
@@ -185,7 +185,7 @@ PostgreSQL 16. Migrations are managed by Sea-ORM and run automatically on server
 |-------|-----------|
 | API server | Rust, Axum 0.8, Tower |
 | ORM | Sea-ORM 1.x (PostgreSQL) |
-| Scripting | mlua (Lua 5.4, vendored) |
+| Scripting | deno_core (V8 JavaScript runtime) |
 | Templates | Minijinja |
 | Frontend | React 19, TypeScript, Vite 6 |
 | Grid | AG Grid 33 |
@@ -304,7 +304,7 @@ Object query parameters: `limit`, `offset`, `search`, `classification`, `needs_r
 | PATCH | `/api/v1/object-types/{id}` | Update object type |
 | DELETE | `/api/v1/object-types/{id}` | Delete object type |
 
-### Scripts (Lua)
+### Scripts (JavaScript)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -323,7 +323,7 @@ Script types: `trigger` (pre_save, pre_delete, validate), `layout` (computed col
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/v1/modules/{module_id}/validate` | Validate module (built-in + Lua rules) |
+| GET | `/api/v1/modules/{module_id}/validate` | Validate module (built-in + JavaScript rules) |
 
 Returns a report with issues (severity: error, warning, info), object count, and link count.
 

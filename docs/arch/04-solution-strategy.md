@@ -33,7 +33,7 @@
 | Metrics / tracing | **opentelemetry** | 🔮 | Prometheus metrics, distributed tracing |
 | Reverse proxy | **nginx** | 🔮 | TLS termination, static asset caching, rate limiting, load balancing |
 | Deployment | **Docker Compose** (dev) / **Kubernetes** (prod) | ✅/🔮 | Dev: Docker Compose for PostgreSQL + devcontainer. Prod: horizontal scaling, health checks, rolling updates |
-| Scripting engine | **mlua** (Lua 5.4) | ✅ | Embedded server-side scripting replacing DOORS Classic DXL. Sandboxed (memory/time limits). Triggers, layout scripts, actions. |
+| Scripting engine | **deno_core** (JavaScript/V8) | ✅ | Embedded server-side scripting replacing DOORS Classic DXL. Sandboxed (memory/time limits). Triggers, layout scripts, actions. |
 | OSLC | **Custom module** (JSON-LD + `serde`) | 🔮 | OSLC Core 3.0 service provider, OSLC-RM 2.1 resources. Delegated UI dialogs. Cross-tool traceability. |
 | SysML v2 | **Custom module** (serde_json) | 🔮 | SysML v2 REST API requirements package. Import `RequirementUsage`/`RequirementDefinition`, export req1 modules. |
 | MCP server | **Custom module** (JSON-RPC) | 🔮 | Model Context Protocol provider exposing req1 tools/resources to AI assistants. |
@@ -68,9 +68,9 @@ SeaweedFS provides S3-compatible API for file attachments, images, and embedded 
 
 req1 acts as both OSLC provider (server) and consumer (client). As provider, it exposes requirement objects as OSLC-RM resources with a service provider catalog and delegated UI for selection/creation dialogs. As consumer, it can create links to resources hosted in any OSLC-capable tool (Polarion, Jama, DOORS Next, Jira with OSLC plugins). Links to external resources are stored alongside internal links with a URI reference instead of an internal object ID.
 
-### Embedded Lua Scripting
+### Embedded JavaScript Scripting
 
-Server-side Lua runtime (via `mlua`) provides DXL-equivalent scripting. Scripts access a safe subset of the data model (read/write objects, create links, query attributes) within a sandboxed environment with memory and CPU time limits. Scripts are stored as first-class entities, triggered via API or scheduled. This replaces the proprietary DXL language that locked DOORS Classic users into IBM's ecosystem.
+Server-side JavaScript runtime (via `deno_core`) provides DXL-equivalent scripting. Scripts access a safe subset of the data model (read/write objects, create links, query attributes) within a sandboxed environment with memory and CPU time limits. Scripts are stored as first-class entities, triggered via API or scheduled. This replaces the proprietary DXL language that locked DOORS Classic users into IBM's ecosystem.
 
 ### Delta-Aware Roundtrip Format
 
@@ -138,10 +138,10 @@ A custom JSON package format for export/reimport workflows. Each exported object
 
 | Alternative | Reason for Rejection |
 |-------------|---------------------|
-| **Embedded JavaScript (V8/deno_core)** | Large binary size (~20 MB V8). Complex build. Security surface area of a full JS engine. |
+| **Embedded Lua (mlua)** | Small ecosystem compared to JavaScript. Lua syntax less familiar to most engineers than JavaScript. Fewer libraries and tooling. |
 | **Embedded Python (PyO3)** | Requires Python runtime. Large dependency. GIL limits concurrency. |
 | **WASM plugins** | Higher barrier for users writing scripts. Compilation step before execution. Fine for plugin authors, not for ad-hoc scripting by engineers. |
-| **Rhai (Rust-native scripting)** | Rust-like syntax unfamiliar to most engineers. Smaller ecosystem than Lua. Less mature sandboxing. |
+| **Rhai (Rust-native scripting)** | Rust-like syntax unfamiliar to most engineers. Smaller ecosystem than JavaScript. Less mature sandboxing. |
 
 ### Cross-Tool Protocol
 

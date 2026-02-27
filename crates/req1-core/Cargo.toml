@@ -11,7 +11,9 @@ sea-orm = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
 sha2 = { workspace = true }
-mlua = { workspace = true }
+deno_core = { workspace = true }
+deno_error = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 minijinja = { workspace = true }
 pulldown-cmark = { workspace = true }

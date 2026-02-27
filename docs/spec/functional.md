@@ -251,7 +251,7 @@
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| FR-700 | The system SHALL support Lua 5.4 scripts as first-class entities stored per module. | SHALL | Implemented |
+| FR-700 | The system SHALL support JavaScript scripts as first-class entities stored per module. | SHALL | Implemented |
 | FR-701 | Each script SHALL have a name, body, description, and type (trigger, layout, action). | SHALL | Implemented |
 | FR-702 | The system SHALL support CRUD operations on scripts via REST API. | SHALL | Implemented |
 
@@ -267,9 +267,9 @@
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| FR-720 | The system SHALL execute scripts in a sandboxed Lua environment with no file I/O, network access, or OS calls. | SHALL | Implemented |
+| FR-720 | The system SHALL execute scripts in a sandboxed JavaScript environment with no file I/O, network access, or OS calls. | SHALL | Implemented |
 | FR-721 | Script execution SHALL be subject to configurable memory and CPU time limits. | SHALL | Implemented |
-| FR-722 | The system SHALL provide a `req1.*` API table to scripts for querying and mutating objects, links, and modules. | SHALL | Implemented |
+| FR-722 | The system SHALL provide a `req1.*` API object to scripts for querying and mutating objects, links, and modules. | SHALL | Implemented |
 | FR-723 | The system SHALL support dry-run (test) execution of scripts without persisting changes. | SHALL | Implemented |
 | FR-724 | All data mutations made by scripts SHALL be attributed to the executing user in the audit trail. | SHALL | Implemented |
 

@@ -23,7 +23,7 @@
 | **Risk Assessment** | N/A | Evaluation of a hazard's severity and probability, producing a risk level. Multiple assessments per hazard (pre/post mitigation). |
 | **Risk Matrix** | N/A | Visualization of hazards on a severity x probability grid with color-coded risk levels. |
 | **Integrity Level** | N/A | Safety classification assigned to requirements: SIL (IEC 61508), ASIL (ISO 26262), DAL (DO-178C), Class (IEC 62304). |
-| **Script** | DXL Script | Server-side Lua script for automation. Stored entity with sandboxed execution environment. |
+| **Script** | DXL Script | Server-side JavaScript script for automation. Stored entity with sandboxed execution environment. |
 | **External Link** | N/A | Link where the target is an external URI (OSLC resource) rather than an internal req1 object. |
 | **Roundtrip Package** | N/A | Export format (.req1.json / .req1.xlsx) with content hashes enabling delta detection on reimport. |
 | **Lifecycle** | N/A (PREEvision: Lebenszyklus) | Configurable state model defining the workflow states a requirement passes through (e.g., new → draft → in_review → approved → released). Color-coded in UI. |
@@ -37,7 +37,7 @@
 | **Collection** | Collection (Polarion) | Cross-project grouping of document baselines that can be frozen together for compliance audits. Extends req1's baseline_set concept across projects. |
 | **Compliance Template** | Project Template (Polarion) | Pre-configured project setup with attribute definitions, object types, lifecycle models, validation rules, and document templates for a specific standard (ISO 26262, DO-178C, etc.). |
 | **Dependent Enumeration** | Dependent Enum (Polarion) | Enum field whose available values are filtered based on the selection in another enum field (cascading dropdown). |
-| **Scheduled Script** | Scheduled Job (Polarion) | A Lua script with a CRON expression that executes automatically at defined intervals for proactive data quality and maintenance. |
+| **Scheduled Script** | Scheduled Job (Polarion) | A JavaScript script with a CRON expression that executes automatically at defined intervals for proactive data quality and maintenance. |
 
 ## Technical Terms
 
@@ -72,8 +72,8 @@
 | **SysML v2** | Systems Modeling Language version 2 (OMG). Complete rewrite of SysML with REST/JSON API. req1 supports the requirements package subset. |
 | **MBSE** | Model-Based Systems Engineering. Engineering approach using models as primary artifacts. SysML v2 integration enables MBSE workflows with req1. |
 | **MCP** | Model Context Protocol. Standard protocol for AI assistants to interact with external tools and data sources via structured tool calls and resources. |
-| **mlua** | Rust crate providing safe Lua 5.4 bindings. Used for the embedded scripting engine. |
-| **Lua** | Lightweight embeddable scripting language. Used as DXL replacement for server-side automation scripts. |
+| **deno_core** | Rust crate providing V8 JavaScript engine bindings with built-in sandboxing. Used for the embedded scripting engine. |
+| **JavaScript (V8)** | Scripting language executed via V8 engine. Used as DXL replacement for server-side automation scripts. |
 | **FMEA** | Failure Mode and Effects Analysis. Systematic technique for identifying potential failure modes and their effects. Supported in the risk module. |
 | **HARA** | Hazard Analysis and Risk Assessment. ISO 26262 method for identifying automotive hazards and assigning ASIL levels. |
 | **Delegated Dialog** | OSLC UI pattern where an external tool opens a picker/creator dialog inside req1 (or vice versa) via iframe. |
@@ -101,7 +101,7 @@
 | **clap** | Rust CLI argument parser (v4, derive macros). Powers the req1 command-line tool. |
 | **Docker** | Container runtime. All services packaged as OCI images. Docker Compose for dev services and devcontainer. |
 | **Kubernetes** | Container orchestration platform. Production deployment target with horizontal scaling and health checks. |
-| **mlua** | Rust crate providing safe bindings to Lua 5.4. Powers the embedded scripting engine with sandboxing. |
+| **deno_core** | Rust crate providing V8 JavaScript engine bindings. Powers the embedded scripting engine with sandboxing. |
 | **sha2** | Rust crate for SHA-256 hashing. Used for content hashing in the roundtrip export format. |
 | **Eclipse Lyo** | Java-based OSLC reference implementation. Used for interoperability testing of req1's OSLC provider/consumer. |
 | **pure::variants** | Variant management tool by pure-systems, integrated into Polarion VARIANTS. Feature-model-based product line engineering for dynamically generating variant-specific artifact sets. |

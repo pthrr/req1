@@ -49,7 +49,7 @@ IBM DOORS Classic is end-of-life software with no modern alternative in the open
 | Review Voting | Formal voting on requirements (approve / reject / abstain per reviewer). Voting dashboard with aggregated results. Review-scoped discussion threads. |
 | OSLC Client & Server | OSLC Core 3.0 + OSLC-RM 2.1 provider and consumer. Cross-tool traceability via RDF/JSON-LD resources. Delegated selection/creation dialogs for linking to external tools. |
 | SysML v2 Import/Export | Import `RequirementUsage` / `RequirementDefinition` from SysML v2 JSON. Export req1 modules as SysML v2 requirement elements. Enables MBSE workflows. |
-| Lua Scripting Engine | Embedded server-side Lua (via `mlua`) replacing DOORS Classic DXL. Sandboxed scripts for batch operations, custom validation, reports, and workflow automation. |
+| JavaScript Scripting Engine | Embedded server-side JavaScript (via `deno_core`) replacing DOORS Classic DXL. Sandboxed scripts for batch operations, custom validation, reports, and workflow automation. |
 | MCP Integration | Model Context Protocol server exposing tools (`search_requirements`, `get_object`, `create_link`, `run_coverage_analysis`, `check_requirement_quality`) to AI assistants. |
 | Roundtrip Export Format | Delta-aware export format (JSON package with content hashes and version metadata). External edit, reimport, and 3-way merge with per-object accept/reject. |
 | Risk Analysis Module | Hazard register, risk matrices (severity x probability), FMEA views. Link types: `mitigates`, `addresses-hazard`. Safety integrity level assignment (SIL/ASIL/DAL) per requirement. |
@@ -62,7 +62,7 @@ IBM DOORS Classic is end-of-life software with no modern alternative in the open
 | Electronic Signatures | Re-authentication on critical workflow transitions for FDA 21 CFR Part 11 compliance. Signature audit records. Four-eyes principle enforcement. |
 | Word Import/Export | Rule-based Word import (map paragraphs to objects). Word export preserving document formatting. Round-trip support. |
 | Compliance Templates | Pre-configured project templates for ISO 26262, DO-178C, IEC 62304, Automotive SPICE. Includes attribute definitions, object types, lifecycle models, and validation rules. |
-| Script Scheduling | CRON-based scheduling for Lua scripts. Automated nightly validation, metric computation, stale link detection. |
+| Script Scheduling | CRON-based scheduling for JavaScript scripts. Automated nightly validation, metric computation, stale link detection. |
 | Real-Time Collaboration | WebSocket-based presence awareness. Concurrent editor indicators. Conflict warnings on simultaneous saves. |
 | Cross-Project Dashboards | Dashboard pages with configurable widgets querying across modules and projects. Coverage charts, lifecycle distribution, test status, suspect link counts. |
 
@@ -80,7 +80,7 @@ IBM DOORS Classic is end-of-life software with no modern alternative in the open
 
 | Role | Expectations |
 |------|-------------|
-| Systems Engineer | Author and trace requirements across modules. Edit in grid/outline views. Create baselines. Write Lua scripts for bulk operations. Manage requirement lifecycles. |
+| Systems Engineer | Author and trace requirements across modules. Edit in grid/outline views. Create baselines. Write JavaScript scripts for bulk operations. Manage requirement lifecycles. |
 | Safety Engineer | Verify traceability coverage (ISO 26262, DO-178C, IEC 62304). Run impact analysis. Review baselines. Manage risk matrices and hazard traceability. |
 | Test Engineer | Create and manage test cases linked to requirements. Track test execution and coverage. Verify traceability completeness. |
 | Project Manager | Dashboard of project health — coverage %, suspect link count, review status, orphan count, risk status, lifecycle state distribution, test pass rates. |

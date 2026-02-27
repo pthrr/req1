@@ -101,7 +101,7 @@ req1 is classified as a **Criteria 3 tool** (output is used without verification
 | CERT-512 | The tool SHALL support baseline comparison for change management. | ISO 26262-8 §8.4.4 | Baseline diff with word-level granularity (FR-430). |
 | CERT-513 | The tool SHALL maintain a complete audit trail of all requirement changes. | ISO 26262-8 §11.4.2 | Object history (CERT-400) with append-only immutability (CERT-402). |
 | CERT-514 | The tool SHALL support formal review workflows with traceable approval. | ISO 26262-8 §11.4.7 | Review packages (FR-900), voting (FR-920), e-signatures (FR-630). |
-| CERT-515 | Tool qualification evidence SHALL be producible per ISO 26262-8 §11.4.9. | ISO 26262-8 §11.4.9 | Data export (CERT-503) + validation rules (FR built-in + Lua) + this specification. |
+| CERT-515 | Tool qualification evidence SHALL be producible per ISO 26262-8 §11.4.9. | ISO 26262-8 §11.4.9 | Data export (CERT-503) + validation rules (FR built-in + JavaScript) + this specification. |
 
 ### IEC 62304 (Medical Devices)
 
@@ -117,7 +117,7 @@ req1 is classified as a **Criteria 3 tool** (output is used without verification
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
 | CERT-530 | The system SHALL include built-in validation rules detecting structural issues (orphan objects, empty headings, missing required attributes, broken link references). | SHALL | Implemented |
-| CERT-531 | The system SHALL support user-defined custom validation rules via Lua scripts (FR-710, validate trigger). | SHALL | Implemented |
+| CERT-531 | The system SHALL support user-defined custom validation rules via JavaScript scripts (FR-710, validate trigger). | SHALL | Implemented |
 | CERT-532 | The validation endpoint SHALL return a structured report with issue severity (error, warning, info), affected object, and description. | SHALL | Implemented |
 | CERT-533 | The CLI `validate` command SHALL exit with code 1 when errors are found, enabling integration into CI/CD gating pipelines. | SHALL | Implemented |
 | CERT-534 | The system SHALL provide a comprehensive REST API (FR-1100) enabling automated tool qualification test suites to verify all certification-relevant behaviors. | SHALL | Implemented |

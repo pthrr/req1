@@ -2026,7 +2026,7 @@ async fn test_script_crud() {
             "name": "Auto-classify",
             "script_type": "trigger",
             "hook_point": "pre_save",
-            "source_code": "return { rejected = false }",
+            "source_code": "",
         }))
         .send()
         .await
@@ -2051,7 +2051,7 @@ async fn test_script_crud() {
     // Update source_code
     let res = client
         .patch(format!("{url}/{s_id}"))
-        .json(&json!({"source_code": "return { rejected = false, reason = 'ok' }"}))
+        .json(&json!({"source_code": "// no-op trigger"}))
         .send()
         .await
         .unwrap();
@@ -2078,7 +2078,7 @@ async fn test_script_invalid_type() {
         .json(&json!({
             "name": "Bad Script",
             "script_type": "invalid",
-            "source_code": "return nil",
+            "source_code": "null",
         }))
         .send()
         .await
@@ -2098,7 +2098,7 @@ async fn test_script_trigger_requires_hook_point() {
         .json(&json!({
             "name": "No Hook",
             "script_type": "trigger",
-            "source_code": "return { rejected = false }",
+            "source_code": "",
         }))
         .send()
         .await
@@ -2120,7 +2120,7 @@ async fn test_script_test_endpoint() {
         .json(&json!({
             "name": "Echo heading",
             "script_type": "layout",
-            "source_code": "return obj.heading or ''",
+            "source_code": "return obj.heading || ''",
         }))
         .send()
         .await
@@ -2208,7 +2208,7 @@ async fn test_script_batch_layout() {
         .json(&json!({
             "name": "Level layout",
             "script_type": "layout",
-            "source_code": "return obj.heading or 'none'",
+            "source_code": "return obj.heading || 'none'",
         }))
         .send()
         .await
@@ -2417,7 +2417,7 @@ async fn test_module_from_template() {
         .json(&json!({
             "name": "Template Script",
             "script_type": "layout",
-            "source_code": "return { value = '' }",
+            "source_code": "return ''",
         }))
         .send()
         .await

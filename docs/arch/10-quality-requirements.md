@@ -23,7 +23,7 @@ Quality
 │   ├── SysML v2 requirement interchange
 │   ├── Roundtrip export delta fidelity
 │   ├── REST API completeness
-│   ├── Lua scripting API coverage
+│   ├── JavaScript scripting API coverage
 │   └── CLI automation
 ├── Auditability
 │   ├── Mutation history
@@ -78,7 +78,7 @@ Quality
 | QS-I7 | SysML v2 modeling tool imports req1 requirements | All `RequirementUsage` elements exported with attributes preserved |
 | QS-I8 | SysML v2 model requirements imported into req1 | `RequirementUsage` mapped to req1 objects, `SatisfyRequirementUsage` mapped to links |
 | QS-I9 | Module exported for roundtrip, edited externally, reimported | Per-object deltas detected correctly. Modified objects identified. No false positives from unchanged objects. |
-| QS-I10 | Lua script batch-updates 500 objects in a module | Script completes within **10 seconds**, all mutations recorded in audit trail |
+| QS-I10 | JavaScript script batch-updates 500 objects in a module | Script completes within **10 seconds**, all mutations recorded in audit trail |
 | QS-I11 | AI assistant queries "show all untested ASIL-D requirements" via MCP | MCP tool returns correct results, respecting user's RBAC scope |
 
 ### Auditability
@@ -91,7 +91,7 @@ Quality
 | QS-A4 | Compliance audit for ISO 26262 project | Complete traceability chain from hazard → safety goal → requirement → test case is queryable |
 | QS-A5 | Compliance audit for DO-178C project | Bidirectional traceability between high-level requirements, low-level requirements, source code references, and test cases |
 | QS-A6 | Risk matrix review for IEC 61508 project | All hazards visible in risk matrix with linked mitigating requirements and their SIL assignments |
-| QS-A7 | Lua script modifies 100 objects | All 100 mutations attributed to the executing user in `object_history` with `change_type = 'script'` |
+| QS-A7 | JavaScript script modifies 100 objects | All 100 mutations attributed to the executing user in `object_history` with `change_type = 'script'` |
 
 ### Availability
 

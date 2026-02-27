@@ -18,9 +18,9 @@
 - [x] Cross-module directed links with attributes
 - [x] Typed attribute definitions (string, int, float, bool, enum, date, rich_text, user_ref)
 - [x] Classification: normative / informative / heading
-- [x] Lua scripting — triggers (pre_save, pre_delete, validate), actions, layout stub
+- [x] JavaScript scripting — triggers (pre_save, pre_delete, validate), actions, layout stub
 - [x] Module baselines with snapshot diffing (word-level inline diff for heading/body/attributes)
-- [x] Validation service — built-in structural rules + Lua custom rules + required_attributes
+- [x] Validation service — built-in structural rules + JavaScript custom rules + required_attributes
 - [x] HTML publishing (Minijinja template with prefix/separator/digits context)
 - [x] Full-text search (PostgreSQL tsvector)
 - [x] Traceability matrix (cross-module, suspect indicators)
@@ -111,7 +111,7 @@ Doorstop has CLI `reorder` and GUI indent/dedent. Our position/parent_id editing
 DOORS has Layout DXL — code in a column definition that computes display values.
 
 - [x] Complete `layout` script type (engine + batch layout endpoint)
-- [x] Lua function returns a display value for a column
+- [x] JavaScript function returns a display value for a column
 - [x] UI: layout-script-backed columns in AG Grid (auto-fetched from enabled layout scripts)
 - [x] Seed layout script examples (Link Count, Classification Badge, Has Body)
 
@@ -349,7 +349,7 @@ Polarion supports server-side scripts that run on configurable CRON schedules fo
 
 Polarion has Java-based hooks that execute before/after saving a Work Item for custom validation, auto-population, and cross-artifact updates.
 
-- [ ] Pre-save / post-save hook framework (extends Lua trigger system)
+- [ ] Pre-save / post-save hook framework (extends JavaScript trigger system)
 - [ ] Hook ordering and priority
 - [ ] Hook failure blocks save with error message
 
@@ -401,7 +401,7 @@ Polarion ships pre-configured project templates for regulated industries (IEC 62
 
 1. **Object type system** is the single biggest abstraction gap. Typed schemas > freeform attributes.
 2. **Saved views** are essential for daily multi-user use. Different stakeholders need different views of the same module.
-3. **Layout DXL / computed columns** — nobody else has this as an open-source feature. Completing our Lua layout scripts would be a differentiator.
+3. **Layout DXL / computed columns** — nobody else has this as an open-source feature. Completing our JavaScript layout scripts would be a differentiator.
 4. **Link modules** — treating links as first-class entities enables separate access control and management.
 5. **Impact analysis** is the killer feature of any traceability tool. We have the data, we need the visualization.
 
@@ -421,7 +421,7 @@ Polarion ships pre-configured project templates for regulated industries (IEC 62
 3. **Word round-trip is as important as Excel** — many regulated processes require Word documents (SRS, SDD, SVP). Import from Word, export to Word, and round-trip without data loss are expected.
 4. **Compliance templates accelerate adoption** — Polarion ships pre-configured project templates for ISO 26262, DO-178C, IEC 62304, Automotive SPICE. Having ready-to-use templates dramatically lowers the barrier to entry for regulated teams.
 5. **Form layout configurability** — different object types need different form layouts. A safety requirement form looks different from a test case form. Admins need to configure this without code.
-6. **Scheduled automation** — CRON-based script execution enables proactive data quality (nightly validation, stale link detection, metric computation). Our Lua engine needs a scheduler.
+6. **Scheduled automation** — CRON-based script execution enables proactive data quality (nightly validation, stale link detection, metric computation). Our JavaScript engine needs a scheduler.
 7. **Real-time collaboration awareness** — seeing who else is editing the same module prevents conflicts and builds confidence in a multi-user tool.
 8. **Collections (cross-project baseline sets)** — our baseline_sets are per-module; Polarion's Collections span projects and freeze everything for compliance audits.
 
@@ -431,7 +431,7 @@ Polarion ships pre-configured project templates for regulated industries (IEC 62
 2. **Lightweight deployment** — single Rust binary + PostgreSQL vs Polarion's heavy Java stack (SVN-backed, requires dedicated server infrastructure).
 3. **Server-based with full CRUD web UI** — Doorstop web is read-only. DOORS is desktop-only. PREEvision is a thick Eclipse client. Polarion's web UI is capable but heavyweight.
 4. **Structured baseline diffing** — word-level inline diff with attribute comparison. Neither Doorstop nor DOORS has this. PREEvision's versioning is model-level. Polarion diffs at field level but not word level.
-5. **Lua scripting** — more powerful than Doorstop's validator-only plugins, cleaner than DXL, more accessible than PREEvision's Java extensions, and lighter than Polarion's Velocity/Java SDK.
+5. **JavaScript scripting** — more powerful than Doorstop's validator-only plugins, cleaner than DXL, more accessible than PREEvision's Java extensions, and lighter than Polarion's Velocity/Java SDK.
 6. **Cross-module named typed links** — better traceability model than Doorstop's single unnamed parent-child links.
 7. **Open source (MIT)** — PREEvision and Polarion are expensive proprietary commercial software. No vendor lock-in, full auditability of the tool itself, no per-seat licensing.
 8. **REST API first** — every operation available via API and CLI. PREEvision requires Java plugins. Polarion's REST API is secondary to its Java SDK.

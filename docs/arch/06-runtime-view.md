@@ -223,31 +223,31 @@ sequenceDiagram
     Note over User,PG: Link now traceable across tools.<br/>Suspect detection applies when<br/>source object is modified.
 ```
 
-## 6.8 Lua Script Execution
+## 6.8 JavaScript Script Execution
 
 ```mermaid
 sequenceDiagram
     actor User
     participant SPA as React SPA
     participant API as Axum API
-    participant Lua as Script Engine (mlua)
+    participant JS as Script Engine (deno_core)
     participant PG as PostgreSQL
 
-    User->>SPA: Open script editor, write Lua script
-    Note over SPA: script = [[<br/>  local objects = req1.find_objects({<br/>    module_id = ctx.module_id,<br/>    filter = { status = "draft" }<br/>  })<br/>  for _, obj in ipairs(objects) do<br/>    req1.update_object(obj.id, {<br/>      attributes = { status = "in_review" }<br/>    })<br/>  end<br/>  return #objects .. " objects updated"<br/>]]
+    User->>SPA: Open script editor, write JavaScript script
+    Note over SPA: script = `<br/>  const objects = req1.findObjects({<br/>    moduleId: ctx.moduleId,<br/>    filter: { status: "draft" }<br/>  });<br/>  for (const obj of objects) {<br/>    req1.updateObject(obj.id, {<br/>      attributes: { status: "in_review" }<br/>    });<br/>  }<br/>  return objects.length + " objects updated";<br/>`
 
     SPA->>API: POST /api/scripts/execute<br/>{ body: "...", context: { module_id: "..." } }
     API->>API: Validate RBAC (user has editor role)
-    API->>Lua: Create sandboxed Lua VM<br/>(memory limit: 64 MB, time limit: 30s)
-    Lua->>Lua: Register req1.* API bindings
-    Lua->>Lua: Execute script
+    API->>JS: Create sandboxed V8 runtime<br/>(memory limit: 64 MB, time limit: 30s)
+    JS->>JS: Register req1.* API bindings
+    JS->>JS: Execute script
 
-    loop For each req1.find_objects / req1.update_object call
-        Lua->>PG: Query/update via sea-orm
-        PG-->>Lua: Results
+    loop For each req1.findObjects / req1.updateObject call
+        JS->>PG: Query/update via sea-orm
+        PG-->>JS: Results
     end
 
-    Lua-->>API: Script result: "47 objects updated"
+    JS-->>API: Script result: "47 objects updated"
     API->>API: Log script execution in audit trail
     API-->>SPA: 200 OK { result: "47 objects updated",<br/>  duration_ms: 230, objects_read: 47, objects_written: 47 }
 ```

@@ -1,16 +1,17 @@
-use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use std::rc::Rc;
 
-use mlua::{Lua, Result as LuaResult, Value};
+use deno_core::{JsRuntime, OpState, RuntimeOptions, op2};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::CoreError;
 
 // ---------------------------------------------------------------------------
-// Data types exchanged between Rust and Lua
+// Data types exchanged between Rust and JavaScript
 // ---------------------------------------------------------------------------
 
-/// A lightweight object representation exposed to Lua scripts.
+/// A lightweight object representation exposed to scripts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScriptObject {
     pub id: String,
@@ -101,56 +102,232 @@ impl<'de> Deserialize<'de> for Mutation {
 }
 
 // ---------------------------------------------------------------------------
+// Script state stored in V8's OpState (single-threaded, no Arc<Mutex>)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ModuleInfo {
+    id: String,
+    name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ContextInfo {
+    hook: String,
+    object: ScriptObject,
+}
+
+struct ScriptState {
+    module_info: Option<ModuleInfo>,
+    context_info: Option<ContextInfo>,
+    current_obj: Option<ScriptObject>,
+    objects: Vec<ScriptObject>,
+    links: Vec<ScriptLink>,
+    mutations: Vec<Mutation>,
+    rejected: Option<String>,
+    output: Vec<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Op error type
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, thiserror::Error, deno_error::JsError)]
+#[class(generic)]
+enum OpError {
+    #[error("{0}")]
+    Generic(String),
+}
+
+// ---------------------------------------------------------------------------
+// Ops
+// ---------------------------------------------------------------------------
+
+#[op2]
+#[serde]
+fn op_get_module(state: &mut OpState) -> Option<ModuleInfo> {
+    state.borrow::<ScriptState>().module_info.clone()
+}
+
+#[op2]
+#[serde]
+fn op_get_context(state: &mut OpState) -> Option<ContextInfo> {
+    state.borrow::<ScriptState>().context_info.clone()
+}
+
+#[op2]
+#[serde]
+fn op_get_obj(state: &mut OpState) -> Option<ScriptObject> {
+    state.borrow::<ScriptState>().current_obj.clone()
+}
+
+#[op2]
+#[serde]
+fn op_objects(state: &mut OpState) -> Vec<ScriptObject> {
+    state.borrow::<ScriptState>().objects.clone()
+}
+
+#[op2]
+#[serde]
+#[allow(clippy::needless_pass_by_value)]
+fn op_get_object(state: &mut OpState, #[string] id: String) -> Option<ScriptObject> {
+    state
+        .borrow::<ScriptState>()
+        .objects
+        .iter()
+        .find(|o| o.id == id)
+        .cloned()
+}
+
+#[op2]
+#[serde]
+fn op_links(
+    state: &mut OpState,
+    #[string] object_id: Option<String>,
+) -> Vec<ScriptLink> {
+    let ss = state.borrow::<ScriptState>();
+    match object_id {
+        Some(oid) => ss
+            .links
+            .iter()
+            .filter(|l| l.source_object_id == oid || l.target_object_id == oid)
+            .cloned()
+            .collect(),
+        None => ss.links.clone(),
+    }
+}
+
+#[op2]
+#[allow(clippy::needless_pass_by_value)]
+fn op_set(
+    state: &mut OpState,
+    #[string] object_id: String,
+    #[string] key: String,
+    #[serde] value: serde_json::Value,
+) -> Result<(), OpError> {
+    let oid = Uuid::parse_str(&object_id)
+        .map_err(|e| OpError::Generic(format!("invalid UUID: {e}")))?;
+    state
+        .borrow_mut::<ScriptState>()
+        .mutations
+        .push(Mutation::SetAttribute {
+            object_id: oid,
+            key,
+            value,
+        });
+    Ok(())
+}
+
+#[op2]
+fn op_reject(state: &mut OpState, #[string] reason: Option<String>) {
+    state.borrow_mut::<ScriptState>().rejected =
+        Some(reason.unwrap_or_else(|| "rejected by script".to_owned()));
+}
+
+#[op2(fast)]
+#[allow(clippy::needless_pass_by_value)]
+fn op_log(#[string] msg: String) {
+    tracing::info!(script_log = %msg);
+}
+
+#[op2(fast)]
+fn op_print(state: &mut OpState, #[string] msg: String) {
+    state.borrow_mut::<ScriptState>().output.push(msg);
+}
+
+// ---------------------------------------------------------------------------
+// Extension
+// ---------------------------------------------------------------------------
+
+deno_core::extension!(
+    req1_scripting,
+    ops = [
+        op_get_module,
+        op_get_context,
+        op_get_obj,
+        op_objects,
+        op_get_object,
+        op_links,
+        op_set,
+        op_reject,
+        op_log,
+        op_print,
+    ],
+);
+
+// ---------------------------------------------------------------------------
+// Bootstrap JS (run before every user script)
+// ---------------------------------------------------------------------------
+
+const BOOTSTRAP_JS: &str = include_str!("bootstrap.js");
+
+// ---------------------------------------------------------------------------
+// Runtime creation
+// ---------------------------------------------------------------------------
+
+fn create_runtime(script_state: ScriptState) -> Result<JsRuntime, CoreError> {
+    let mut runtime = JsRuntime::new(RuntimeOptions {
+        extensions: vec![req1_scripting::init_ops()],
+        ..Default::default()
+    });
+
+    {
+        let op_state: Rc<RefCell<OpState>> = runtime.op_state();
+        op_state.borrow_mut().put(script_state);
+    }
+
+    // Run bootstrap to set up globals
+    let _ = runtime
+        .execute_script("<bootstrap>", BOOTSTRAP_JS.to_owned())
+        .map_err(|e| CoreError::Internal(format!("bootstrap error: {e}")))?;
+
+    Ok(runtime)
+}
+
+// ---------------------------------------------------------------------------
 // Engine
 // ---------------------------------------------------------------------------
 
 pub struct ScriptEngine;
 
-fn lock_mutex<T>(m: &Mutex<T>) -> Result<std::sync::MutexGuard<'_, T>, CoreError> {
-    m.lock()
-        .map_err(|e| CoreError::Internal(format!("mutex poisoned: {e}")))
-}
-
-fn lock_mutex_lua<T>(m: &Mutex<T>) -> mlua::Result<std::sync::MutexGuard<'_, T>> {
-    m.lock()
-        .map_err(|e| mlua::Error::runtime(format!("mutex: {e}")))
-}
-
 impl ScriptEngine {
     /// Run a trigger script (`pre_save` / `post_save` / `pre_delete` / `post_delete`).
-    ///
-    /// The script can:
-    /// - Read `context.object` (the object being saved/deleted)
-    /// - Read `context.hook` (e.g. `"pre_save"`)
-    /// - Call `req1.objects()` to iterate all module objects
-    /// - Call `req1.get_object(id)` to fetch by id
-    /// - Call `req1.links(object_id?)` to get links
-    /// - Call `req1.set(object_id, attr, value)` to buffer attribute writes
-    /// - Call `req1.reject(reason)` to block the operation
-    /// - Call `req1.log(msg)` for logging
     pub fn run_trigger(
         source: &str,
         world: &ScriptWorld,
         trigger_ctx: &TriggerContext,
     ) -> Result<TriggerResult, CoreError> {
-        let lua = new_sandbox();
+        let state = ScriptState {
+            module_info: Some(ModuleInfo {
+                id: world.module_id.to_string(),
+                name: world.module_name.clone(),
+            }),
+            context_info: Some(ContextInfo {
+                hook: trigger_ctx.hook_point.clone(),
+                object: trigger_ctx.object.clone(),
+            }),
+            current_obj: None,
+            objects: world.objects.clone(),
+            links: world.links.clone(),
+            mutations: Vec::new(),
+            rejected: None,
+            output: Vec::new(),
+        };
 
-        let mutations: Arc<Mutex<Vec<Mutation>>> = Arc::new(Mutex::new(Vec::new()));
-        let rejected: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+        let mut runtime = create_runtime(state)?;
 
-        install_world(&lua, world)?;
-        install_context(&lua, trigger_ctx)?;
-        install_api(&lua, world, &mutations, &rejected)?;
-
-        lua.load(source)
-            .exec()
+        let _ = runtime
+            .execute_script("<trigger>", source.to_owned())
             .map_err(|e| CoreError::BadRequest(format!("script error: {e}")))?;
 
-        let rej = lock_mutex(&rejected)?;
+        let rc = runtime.op_state();
+        let borrowed = rc.borrow();
+        let ss = borrowed.borrow::<ScriptState>();
+
         Ok(TriggerResult {
-            rejected: rej.is_some(),
-            reason: rej.clone(),
-            mutations: lock_mutex(&mutations)?.clone(),
+            rejected: ss.rejected.is_some(),
+            reason: ss.rejected.clone(),
+            mutations: ss.mutations.clone(),
         })
     }
 
@@ -162,339 +339,86 @@ impl ScriptEngine {
         world: &ScriptWorld,
         object: &ScriptObject,
     ) -> Result<LayoutResult, CoreError> {
-        let lua = new_sandbox();
-        install_world(&lua, world)?;
+        let state = ScriptState {
+            module_info: Some(ModuleInfo {
+                id: world.module_id.to_string(),
+                name: world.module_name.clone(),
+            }),
+            context_info: None,
+            current_obj: Some(object.clone()),
+            objects: world.objects.clone(),
+            links: world.links.clone(),
+            mutations: Vec::new(),
+            rejected: None,
+            output: Vec::new(),
+        };
 
-        // Set `obj` as the current object
-        let obj_table = script_object_to_table(&lua, object)?;
-        lua.globals()
-            .set("obj", obj_table)
-            .map_err(|e| CoreError::Internal(format!("lua set obj: {e}")))?;
+        let mut runtime = create_runtime(state)?;
 
-        // Install read-only API (no mutations for layout)
-        let noop_mutations = Arc::new(Mutex::new(Vec::new()));
-        let noop_rejected = Arc::new(Mutex::new(None));
-        install_api(&lua, world, &noop_mutations, &noop_rejected)?;
+        // Wrap in an IIFE so `return` works at the top level.
+        let wrapped = format!("((function() {{ {source} }})())");
 
-        let result: Value = lua
-            .load(source)
-            .eval()
+        let result = runtime
+            .execute_script("<layout>", wrapped)
             .map_err(|e| CoreError::BadRequest(format!("layout script error: {e}")))?;
 
-        let value = match result {
-            Value::String(s) => s
-                .to_str()
-                .map_err(|e| CoreError::Internal(format!("lua string: {e}")))?
-                .to_owned(),
-            Value::Integer(i) => i.to_string(),
-            Value::Number(n) => n.to_string(),
-            Value::Boolean(b) => b.to_string(),
-            _ => String::new(),
+        // Extract the return value from V8
+        let value = {
+            let scope = &mut runtime.handle_scope();
+            let local = deno_core::v8::Local::new(scope, result);
+            v8_to_string(scope, local)
         };
 
         Ok(LayoutResult { value })
     }
 
     /// Run an action script (batch operation).
-    ///
-    /// Has full read/write access. Output is collected via `req1.print(msg)`.
     pub fn run_action(source: &str, world: &ScriptWorld) -> Result<ActionResult, CoreError> {
-        let lua = new_sandbox();
+        let state = ScriptState {
+            module_info: Some(ModuleInfo {
+                id: world.module_id.to_string(),
+                name: world.module_name.clone(),
+            }),
+            context_info: None,
+            current_obj: None,
+            objects: world.objects.clone(),
+            links: world.links.clone(),
+            mutations: Vec::new(),
+            rejected: None,
+            output: Vec::new(),
+        };
 
-        let mutations: Arc<Mutex<Vec<Mutation>>> = Arc::new(Mutex::new(Vec::new()));
-        let rejected: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-        let output: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let mut runtime = create_runtime(state)?;
 
-        install_world(&lua, world)?;
-        install_api(&lua, world, &mutations, &rejected)?;
-
-        // Add req1.print for action output
-        let output_clone = output.clone();
-        let print_fn = lua
-            .create_function(move |_, msg: String| {
-                lock_mutex_lua(&output_clone)?.push(msg);
-                Ok(())
-            })
-            .map_err(|e| CoreError::Internal(format!("lua create print: {e}")))?;
-        let req1: mlua::Table = lua
-            .globals()
-            .get("req1")
-            .map_err(|e| CoreError::Internal(format!("lua get req1: {e}")))?;
-        req1.set("print", print_fn)
-            .map_err(|e| CoreError::Internal(format!("lua set print: {e}")))?;
-
-        lua.load(source)
-            .exec()
+        let _ = runtime
+            .execute_script("<action>", source.to_owned())
             .map_err(|e| CoreError::BadRequest(format!("action script error: {e}")))?;
 
+        let rc = runtime.op_state();
+        let borrowed = rc.borrow();
+        let ss = borrowed.borrow::<ScriptState>();
+
         Ok(ActionResult {
-            output: lock_mutex(&output)?.clone(),
-            mutations: lock_mutex(&mutations)?.clone(),
+            output: ss.output.clone(),
+            mutations: ss.mutations.clone(),
         })
     }
 }
 
 // ---------------------------------------------------------------------------
-// Sandbox & helpers
+// Helpers
 // ---------------------------------------------------------------------------
 
-fn new_sandbox() -> Lua {
-    let lua = Lua::new();
-    let globals = lua.globals();
-    // Remove dangerous modules
-    for name in &["os", "io", "debug", "loadfile", "dofile"] {
-        let _ = globals.set(*name, Value::Nil);
+/// Convert a V8 value to a Rust String for layout results.
+fn v8_to_string(
+    scope: &mut deno_core::v8::HandleScope,
+    value: deno_core::v8::Local<deno_core::v8::Value>,
+) -> String {
+    if value.is_null_or_undefined() {
+        return String::new();
     }
-    lua
-}
-
-fn install_world(lua: &Lua, world: &ScriptWorld) -> Result<(), CoreError> {
-    let globals = lua.globals();
-
-    // module table
-    let mod_table = lua
-        .create_table()
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-    mod_table
-        .set("id", world.module_id.to_string())
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-    mod_table
-        .set("name", world.module_name.as_str())
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-    globals
-        .set("module", mod_table)
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-
-    Ok(())
-}
-
-fn install_context(lua: &Lua, ctx: &TriggerContext) -> Result<(), CoreError> {
-    let globals = lua.globals();
-    let ctx_table = lua
-        .create_table()
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-    ctx_table
-        .set("hook", ctx.hook_point.as_str())
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-
-    let obj_table = script_object_to_table(lua, &ctx.object)?;
-    ctx_table
-        .set("object", obj_table)
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-
-    globals
-        .set("context", ctx_table)
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-
-    Ok(())
-}
-
-fn install_api(
-    lua: &Lua,
-    world: &ScriptWorld,
-    mutations: &Arc<Mutex<Vec<Mutation>>>,
-    rejected: &Arc<Mutex<Option<String>>>,
-) -> Result<(), CoreError> {
-    let globals = lua.globals();
-    let req1 = lua
-        .create_table()
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-
-    // req1.objects() -> array of all objects in module
-    let objects_data = world.objects.clone();
-    let objects_fn = lua
-        .create_function(move |l, ()| {
-            let arr = l.create_table()?;
-            for (i, obj) in objects_data.iter().enumerate() {
-                let t = script_object_to_table_inner(l, obj)?;
-                arr.set(i + 1, t)?;
-            }
-            Ok(arr)
-        })
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-    req1.set("objects", objects_fn)
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-
-    // req1.get_object(id) -> object table or nil
-    let objects_by_id = world.objects.clone();
-    let get_obj_fn = lua
-        .create_function(move |l, id: String| {
-            for obj in &objects_by_id {
-                if obj.id == id {
-                    let t = script_object_to_table_inner(l, obj)?;
-                    return Ok(Value::Table(t));
-                }
-            }
-            Ok(Value::Nil)
-        })
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-    req1.set("get_object", get_obj_fn)
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-
-    // req1.links(object_id?) -> array of links, optionally filtered by object
-    let links_data = world.links.clone();
-    let links_fn = lua
-        .create_function(move |l, object_id: Option<String>| {
-            let arr = l.create_table()?;
-            let mut idx = 1;
-            for link in &links_data {
-                let include = match &object_id {
-                    Some(oid) => link.source_object_id == *oid || link.target_object_id == *oid,
-                    None => true,
-                };
-                if include {
-                    let t = l.create_table()?;
-                    t.set("id", link.id.as_str())?;
-                    t.set("source_object_id", link.source_object_id.as_str())?;
-                    t.set("target_object_id", link.target_object_id.as_str())?;
-                    t.set("link_type_id", link.link_type_id.as_str())?;
-                    t.set("suspect", link.suspect)?;
-                    arr.set(idx, t)?;
-                    idx += 1;
-                }
-            }
-            Ok(arr)
-        })
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-    req1.set("links", links_fn)
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-
-    // req1.set(object_id, attr_name, value) -> buffer an attribute write
-    let mut_clone = mutations.clone();
-    let set_fn = lua
-        .create_function(move |_, (object_id, key, value): (String, String, Value)| {
-            let json_val = lua_value_to_json_inner(&value);
-            let oid = Uuid::parse_str(&object_id)
-                .map_err(|e| mlua::Error::runtime(format!("invalid UUID: {e}")))?;
-            lock_mutex_lua(&mut_clone)?.push(Mutation::SetAttribute {
-                object_id: oid,
-                key,
-                value: json_val,
-            });
-            Ok(())
-        })
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-    req1.set("set", set_fn)
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-
-    // req1.reject(reason) -> reject the operation (triggers only)
-    let rej_clone = rejected.clone();
-    let reject_fn = lua
-        .create_function(move |_, reason: Option<String>| {
-            *lock_mutex_lua(&rej_clone)? =
-                Some(reason.unwrap_or_else(|| "rejected by script".to_owned()));
-            Ok(())
-        })
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-    req1.set("reject", reject_fn)
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-
-    // req1.log(msg) -> tracing info
-    let log_fn = lua
-        .create_function(|_, msg: String| {
-            tracing::info!(lua_log = %msg);
-            Ok(())
-        })
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-    req1.set("log", log_fn)
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-
-    globals
-        .set("req1", req1)
-        .map_err(|e| CoreError::Internal(format!("lua: {e}")))?;
-
-    Ok(())
-}
-
-fn script_object_to_table(lua: &Lua, obj: &ScriptObject) -> Result<mlua::Table, CoreError> {
-    script_object_to_table_inner(lua, obj).map_err(|e| CoreError::Internal(format!("lua: {e}")))
-}
-
-fn script_object_to_table_inner(lua: &Lua, obj: &ScriptObject) -> LuaResult<mlua::Table> {
-    let t = lua.create_table()?;
-    t.set("id", obj.id.as_str())?;
-    if let Some(ref h) = obj.heading {
-        t.set("heading", h.as_str())?;
+    if value.is_string() || value.is_number() || value.is_boolean() {
+        return value.to_rust_string_lossy(scope);
     }
-    if let Some(ref b) = obj.body {
-        t.set("body", b.as_str())?;
-    }
-    if let Some(ref l) = obj.level {
-        t.set("level", l.as_str())?;
-    }
-    if let Some(ref c) = obj.classification {
-        t.set("classification", c.as_str())?;
-    }
-    t.set("version", obj.version)?;
-
-    // Attributes as a nested table
-    if let Some(obj_map) = obj
-        .attributes
-        .as_ref()
-        .and_then(serde_json::Value::as_object)
-    {
-        let attr_table = lua.create_table()?;
-        for (k, v) in obj_map {
-            attr_table.set(k.as_str(), json_to_lua_value(lua, v)?)?;
-        }
-        t.set("attributes", attr_table)?;
-    }
-
-    // Convenience: obj:get(name) to read attribute
-    #[allow(clippy::shadow_unrelated)]
-    let get_fn = lua.create_function(|_, (tbl, name): (mlua::Table, String)| {
-        let attrs: Option<mlua::Table> = tbl.get("attributes")?;
-        match attrs {
-            Some(a) => a.get::<Value>(name),
-            None => Ok(Value::Nil),
-        }
-    })?;
-    t.set("get", get_fn)?;
-
-    Ok(t)
-}
-
-fn json_to_lua_value(lua: &Lua, value: &serde_json::Value) -> LuaResult<Value> {
-    match value {
-        serde_json::Value::Null => Ok(Value::Nil),
-        serde_json::Value::Bool(b) => Ok(Value::Boolean(*b)),
-        serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                Ok(Value::Integer(i))
-            } else if let Some(f) = n.as_f64() {
-                Ok(Value::Number(f))
-            } else {
-                Ok(Value::Nil)
-            }
-        }
-        serde_json::Value::String(s) => Ok(Value::String(lua.create_string(s)?)),
-        serde_json::Value::Array(arr) => {
-            let t = lua.create_table()?;
-            for (i, v) in arr.iter().enumerate() {
-                t.set(i + 1, json_to_lua_value(lua, v)?)?;
-            }
-            Ok(Value::Table(t))
-        }
-        serde_json::Value::Object(map) => {
-            let t = lua.create_table()?;
-            for (k, v) in map {
-                t.set(k.as_str(), json_to_lua_value(lua, v)?)?;
-            }
-            Ok(Value::Table(t))
-        }
-    }
-}
-
-#[allow(clippy::shadow_unrelated)]
-fn lua_value_to_json_inner(value: &Value) -> serde_json::Value {
-    match value {
-        Value::Boolean(b) => serde_json::Value::Bool(*b),
-        Value::Integer(i) => serde_json::json!(*i),
-        Value::Number(n) => serde_json::json!(*n),
-        Value::String(s) => match s.to_str() {
-            Ok(str_val) => serde_json::Value::String(str_val.to_owned()),
-            Err(_) => serde_json::Value::Null,
-        },
-        _ => serde_json::Value::Null,
-    }
+    String::new()
 }

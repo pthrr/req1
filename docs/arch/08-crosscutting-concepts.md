@@ -325,13 +325,13 @@ req1 imports and exports the **requirements package** of SysML v2 only — not t
 - req1 can act as a lightweight SysML v2 API server for requirements only
 - Full modeling tools (Cameo, Capella) can query req1 via standard SysML v2 API
 
-## 8.12 Lua Scripting Engine
+## 8.12 JavaScript Scripting Engine
 
 ### Architecture
 
-- **Runtime**: Lua 5.4 via `mlua` crate (safe mode by default)
+- **Runtime**: JavaScript (V8) via `deno_core` crate (sandboxed by default)
 - **Sandboxing**: Per-execution limits — memory (configurable, default 64 MB), CPU time (configurable, default 30s), no file I/O, no network access, no OS calls
-- **API Surface**: `req1.*` global table exposed to scripts
+- **API Surface**: `req1.*` global object exposed to scripts
 
 ### Script API (`req1.*`)
 
@@ -359,7 +359,7 @@ req1 imports and exports the **requirements package** of SysML v2 only — not t
 
 ### Use Cases (DXL Equivalents)
 
-| DOORS Classic DXL | req1 Lua |
+| DOORS Classic DXL | req1 JavaScript |
 |-------------------|----------|
 | Batch attribute updates | `req1.find_objects` + `req1.update_object` in a loop |
 | Custom validation rules | Script that checks each object against rules, returns violations |
@@ -739,7 +739,7 @@ e_signature (
 
 ### Motivation
 
-Polarion supports CRON-based server-side script execution for automated data quality. req1's Lua scripting engine currently supports only on-demand execution (API trigger). Scheduled scripts enable proactive maintenance.
+Polarion supports CRON-based server-side script execution for automated data quality. req1's JavaScript scripting engine currently supports only on-demand execution (API trigger). Scheduled scripts enable proactive maintenance.
 
 ### Implementation
 
@@ -750,7 +750,7 @@ Polarion supports CRON-based server-side script execution for automated data qua
 
 ### Use Cases
 
-- Nightly validation of all modules (run built-in + custom Lua rules)
+- Nightly validation of all modules (run built-in + custom JavaScript rules)
 - Stale suspect link detection (flag links that have been suspect for > N days)
 - Coverage metric computation and caching
 - Automated report generation

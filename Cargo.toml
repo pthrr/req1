@@ -28,7 +28,8 @@ reqwest = { version = "0.12", features = ["json"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 sha2 = "0.10"
-mlua = { version = "0.10", features = ["lua54", "vendored", "async", "send"] }
+deno_core = "0.336"
+deno_error = "0.5"
 minijinja = { version = "2", features = ["loader"] }
 pulldown-cmark = "0.12"
 clap = { version = "4", features = ["derive"] }

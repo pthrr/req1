@@ -37,7 +37,12 @@
       "Bash(ps:*)",
       "Bash(task:*)",
       "Bash(wc:*)",
-      "Bash(docker ps:*)"
+      "Bash(docker ps:*)",
+      "Bash(rustc:*)",
+      "Bash(cargo:*)",
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:crates.io)",
+      "WebFetch(domain:deno.com)"
     ]
   }
 }
