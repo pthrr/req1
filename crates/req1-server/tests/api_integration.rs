@@ -46,6 +46,9 @@ async fn spawn_server() -> String {
         database_url,
         redis_url: None,
         listen_addr: "127.0.0.1:0".to_string(),
+        cors_origin: None,
+        static_dir: None,
+        build_sha: None,
     };
 
     let state = AppState { db, config };

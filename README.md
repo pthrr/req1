@@ -30,10 +30,11 @@ req1/
 ├── crates/
 │   ├── req1-server/          # Axum REST API server
 │   │   ├── src/
-│   │   │   ├── main.rs       # Server entrypoint
-│   │   │   ├── config.rs     # Environment config
+│   │   │   ├── main.rs       # Server entrypoint (graceful shutdown, CORS, static serving)
+│   │   │   ├── config.rs     # Environment config (PORT, CORS_ORIGIN, STATIC_DIR, BUILD_SHA)
 │   │   │   ├── state.rs      # Shared application state
 │   │   │   ├── error.rs      # Error types
+│   │   │   ├── middleware.rs  # Cache-Control middleware for static assets
 │   │   │   └── routes/       # 20 route modules (one per resource)
 │   │   └── tests/
 │   │       └── api_integration.rs
@@ -59,7 +60,10 @@ req1/
 ├── migration/                # Sea-ORM migrations (23 sequential)
 ├── frontend/                 # React SPA (Vite, AG Grid, D3)
 ├── docs/                     # Architecture documentation (arc42)
-├── docker-compose.yml        # PostgreSQL, Redis, devcontainer service
+├── Dockerfile                # Multi-stage production build (bun + cargo + debian-slim)
+├── docker-compose.yml        # PostgreSQL, Redis, devcontainer service (dev)
+├── docker-compose.prod.yml   # Production: app + postgres + redis
+├── .dockerignore             # Docker build exclusions
 ├── Taskfile.yml              # Dev workflow tasks (task dev, task test, etc.)
 ├── flake.nix                 # Nix dev shell (alternative to devcontainer)
 └── .env                      # Environment variables (DB, Redis, server config)
@@ -145,6 +149,10 @@ Configured in `.env`:
 | `DATABASE_URL` | `postgres://req1:req1dev@localhost:5432/req1` | PostgreSQL connection string |
 | `REDIS_URL` | `redis://localhost:6379` | Redis connection string |
 | `LISTEN_ADDR` | `0.0.0.0:8080` | API server listen address |
+| `PORT` | — | Overrides `LISTEN_ADDR` with `0.0.0.0:{PORT}` (Cloud Run / Heroku compat) |
+| `CORS_ORIGIN` | `*` (permissive) | Allowed origins, comma-separated. `*` or unset = permissive |
+| `STATIC_DIR` | — | Path to frontend `dist/` directory for SPA serving |
+| `BUILD_SHA` | — | Git commit SHA, included in `/health/live` and `/health/ready` responses |
 | `RUST_LOG` | `req1_server=debug,tower_http=debug` | Log level filter |
 
 ### Testing
@@ -501,6 +509,38 @@ req1 publish --module-id <uuid> --format html --output module.html
 - **Table** (default) — columnar with level, ID, heading, classification, version, review status
 - **Tree** (`--tree`) — indented hierarchy with `[R]`/`[ ]` review markers
 - **JSON** (`--format json`) — full object data as pretty-printed JSON
+
+## Production Deployment
+
+### Docker (single container)
+
+```bash
+# Build the image (frontend + backend in one image)
+docker build -t req1 .
+
+# Or with a specific build SHA
+docker build --build-arg BUILD_SHA=$(git rev-parse --short HEAD) -t req1 .
+```
+
+### Docker Compose (full stack)
+
+```bash
+# Start app + PostgreSQL + Redis
+docker compose -f docker-compose.prod.yml up -d
+
+# With custom Postgres password
+POSTGRES_PASSWORD=mysecret docker compose -f docker-compose.prod.yml up -d
+
+# Verify
+curl http://localhost:8080/health/ready
+```
+
+The production Dockerfile uses a multi-stage build:
+1. **Frontend** — `oven/bun:1` builds the React SPA via Vite
+2. **Backend** — `rust:1-bookworm` compiles the Axum server in release mode
+3. **Runtime** — `debian:bookworm-slim` with the binary + static assets, running as non-root (uid 1000)
+
+The server serves the frontend as static files (SPA fallback to `index.html`) and applies `Cache-Control` headers (`immutable` for hashed `/assets/*`, `no-cache` for HTML).
 
 ## Documentation
 

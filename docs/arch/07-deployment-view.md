@@ -59,59 +59,51 @@ C4Deployment
 | Logging | Structured JSON logs → Loki or ELK |
 | Backups | pg_basebackup + WAL archiving to S3-compatible storage |
 
-## 7.2 Docker Compose (Small Team / Development)
+## 7.2 Docker Compose (Small Team / Production)
 
-```yaml
-# docker-compose.yml (simplified)
-services:
-  req1:
-    image: req1:latest
-    ports:
-      - "8080:8080"
-    environment:
-      DATABASE_URL: postgres://req1:secret@postgres:5432/req1
-      REDIS_URL: redis://redis:6379
-      SEAWEEDFS_URL: http://seaweedfs:8333
-      OIDC_ISSUER: https://idp.example.com
-      OIDC_CLIENT_ID: req1
-      OIDC_CLIENT_SECRET: ${OIDC_SECRET}
-    depends_on:
-      - postgres
-      - redis
-      - seaweedfs
+Production deployment uses `docker-compose.prod.yml` with a multi-stage `Dockerfile`:
 
-  postgres:
-    image: postgres:16
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: req1
-      POSTGRES_USER: req1
-      POSTGRES_PASSWORD: secret
+### Multi-Stage Dockerfile
 
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redisdata:/data
+Three stages:
+1. **Frontend** (`oven/bun:1`) — `bun install --frozen-lockfile` + `bun run build` produces `dist/`
+2. **Backend** (`rust:1-bookworm`) — dependency caching via dummy source files, then `cargo build --release --bin req1-server`
+3. **Runtime** (`debian:bookworm-slim`) — `ca-certificates`, `libssl3`, `curl` (healthcheck). Non-root user (uid 1000). Static assets served by the Axum binary via `tower-http::ServeDir` with SPA fallback.
 
-  seaweedfs:
-    image: chrislusf/seaweedfs
-    command: "server -s3"
-    volumes:
-      - seaweeddata:/data
+Debian-slim (not Alpine) because deno_core/V8 requires glibc.
 
-volumes:
-  pgdata:
-  redisdata:
-  seaweeddata:
+### docker-compose.prod.yml
+
+```bash
+# Start full stack
+docker compose -f docker-compose.prod.yml up -d
+
+# With custom credentials
+POSTGRES_PASSWORD=mysecret CORS_ORIGIN=https://app.example.com \
+  docker compose -f docker-compose.prod.yml up -d
 ```
+
+Services:
+- **app** — builds from `Dockerfile`, exposes port 8080, healthcheck via `/health/live`
+- **postgres:16-alpine** — persistent volume, healthcheck via `pg_isready`
+- **redis:7-alpine** — persistent volume, healthcheck via `redis-cli ping`
+- All services use `depends_on` with `condition: service_healthy` and `restart: unless-stopped`
+- Postgres and Redis ports are not exposed externally (internal network only)
+
+### Server Features
+
+- **Graceful shutdown** — handles SIGTERM and Ctrl+C for clean container stops
+- **Configurable CORS** — `CORS_ORIGIN` env var: unset or `*` = permissive; comma-separated origins for restrictive mode
+- **Static file serving** — `STATIC_DIR` env var points to frontend `dist/`, serves with SPA fallback (`index.html`)
+- **Cache-Control** — `/assets/*` gets `immutable` (Vite hashed filenames), HTML gets `no-cache`
+- **Build SHA** — `BUILD_SHA` env var included in health endpoint responses
 
 ### Single-Node Deployment Notes
 
 - All services on one host — suitable for teams of 5–20 users
 - nginx optional (Axum serves TLS directly or sits behind a host-level reverse proxy)
 - Backup strategy: `pg_dump` cron job + volume snapshots
-- Upgrade path: `docker compose pull && docker compose up -d`
+- Upgrade path: `docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml up -d`
 
 ## 7.3 Devcontainer (Developer Onboarding)
 

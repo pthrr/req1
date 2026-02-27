@@ -9,7 +9,7 @@
 | **PostgreSQL** | Single source of truth for data, history, baselines, links. JSONB for flexible attributes. Built-in FTS. |
 | **Self-hostable** | Enterprise customers require on-premise deployment. No mandatory cloud dependency. |
 | **MIT license** | Most permissive open-source license. Chosen explicitly for maximum adoption. |
-| **No Node.js in production** | Frontend compiled to static assets by Vite, served from the Axum binary via `rust-embed` or `tower-http::ServeDir`. |
+| **No Node.js in production** | Frontend compiled to static assets by Vite, served from the Axum binary via `tower-http::ServeDir` with SPA fallback. |
 
 ## 2.2 Organizational Constraints
 

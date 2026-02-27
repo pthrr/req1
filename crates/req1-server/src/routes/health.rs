@@ -10,8 +10,8 @@ pub fn routes() -> Router<AppState> {
         .route("/health/ready", get(readiness))
 }
 
-async fn liveness() -> axum::Json<serde_json::Value> {
-    axum::Json(json!({"status": "ok"}))
+async fn liveness(State(state): State<AppState>) -> axum::Json<serde_json::Value> {
+    axum::Json(build_health_body(&state))
 }
 
 async fn readiness(
@@ -20,7 +20,14 @@ async fn readiness(
     ping_db(&state.db)
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    Ok(axum::Json(json!({"status": "ok"})))
+    Ok(axum::Json(build_health_body(&state)))
+}
+
+fn build_health_body(state: &AppState) -> serde_json::Value {
+    match &state.config.build_sha {
+        Some(sha) => json!({"status": "ok", "build_sha": sha}),
+        None => json!({"status": "ok"}),
+    }
 }
 
 async fn ping_db(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {

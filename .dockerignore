@@ -1,0 +1,11 @@
+target/
+node_modules/
+frontend/dist/
+.git/
+.devcontainer/
+.env
+.env.*
+docs/
+test-results/
+frontend/test-results/
+.claude/
