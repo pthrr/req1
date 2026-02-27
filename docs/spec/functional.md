@@ -466,11 +466,72 @@
 
 ---
 
+## 12. Usability & Production Readiness — FR-12xx
+
+*Derived from competitive analysis of IBM DOORS Classic, DOORS Next Generation, Siemens Polarion, and Doorstop. Requirements below address gaps and pain points identified in those tools that are not already covered by existing FR sections.*
+
+### Editing Experience
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| FR-1200 | The system SHALL provide a WYSIWYG rich text editor for editing object body fields, supporting formatted text, tables, and embedded images. | SHALL | Planned |
+| FR-1201 | The rich text editor SHALL support reliable copy-paste from Microsoft Office and common office formats without breaking formatting. | SHALL | Planned |
+| FR-1202 | The system SHALL auto-save in-progress edits, persisting changes without requiring explicit save actions. | SHALL | Planned |
+| FR-1203 | The system SHOULD support undo/redo for editing operations within a session. | SHOULD | Planned |
+| FR-1204 | The system SHALL detect concurrent edits to the same object and warn the second editor before overwrite. | SHALL | Planned |
+
+*Rationale: DOORS Classic has primitive editing. Polarion breaks formatting on Office paste and lacks auto-save. Doorstop has no editor at all. Rich text with auto-save is expected for requirement authoring in regulated industries.*
+
+### Onboarding & Configuration Defaults
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| FR-1210 | The system SHALL provide a default lifecycle template (New → Draft → In Review → Approved → Released → Deprecated) seeded on first startup, usable without configuration. | SHALL | Planned |
+| FR-1211 | The system SHALL provide built-in validation rules that work without custom scripting, covering: empty body detection, missing required attributes, orphan objects (no links), duplicate headings, and suspect link counts. | SHALL | Implemented |
+| FR-1212 | The system SHOULD provide configuration presets (project templates with lifecycle, attribute definitions, and object types) to guide consistent initial setup across teams. | SHOULD | Planned |
+| FR-1213 | The system SHOULD warn when a configuration change (e.g., removing an attribute definition or lifecycle state) would affect existing objects or break cross-team consistency. | SHOULD | Planned |
+
+*Rationale: Polarion's extreme customizability tempts teams into over-engineering that breaks cross-team workflows. DOORS Classic requires DXL scripting for all validation and reporting. Sensible defaults with guard rails reduce onboarding time and prevent configuration drift.*
+
+### Performance & Scalability
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| FR-1220 | The system SHALL maintain sub-second response times for standard API operations (list, get, create, update) on modules containing up to 10,000 objects. | SHALL | Partial |
+| FR-1221 | The system SHOULD support at least 100 concurrent authenticated users without response time degradation. | SHOULD | Planned |
+
+*Rationale: DOORS NG becomes sluggish with large projects. Polarion (backed by Subversion) degrades over years as revisions accumulate. PostgreSQL with proper indexing avoids structural performance decay.*
+
+### Production Deployment
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| FR-1230 | The system SHALL support deployment as a single Docker container serving both the REST API and frontend static assets. | SHALL | Implemented |
+| FR-1231 | The system SHALL shut down gracefully on SIGTERM and SIGINT, completing in-flight requests before terminating. | SHALL | Implemented |
+| FR-1232 | The system SHALL support configurable CORS origins via environment variable, defaulting to permissive for development. | SHALL | Implemented |
+| FR-1233 | The health check endpoints SHALL include a build identifier (commit SHA) when configured via environment variable. | SHOULD | Implemented |
+| FR-1234 | The system SHALL serve static frontend assets with appropriate Cache-Control headers: immutable for hashed assets, no-cache for HTML entry points. | SHALL | Implemented |
+| FR-1235 | The system SHALL support a `PORT` environment variable override for cloud platform compatibility (Cloud Run, Heroku, Railway). | SHALL | Implemented |
+
+*Rationale: DOORS Classic and DNG require complex multi-component installation with dedicated admin staff. The Jazz platform adds significant operational overhead. Single-container deployment with proper production defaults is a key differentiator.*
+
+### Data Portability
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| FR-1240 | The system SHALL store all data in PostgreSQL using standard data types and a documented schema, enabling direct SQL access and migration to other tools. | SHALL | Implemented |
+| FR-1241 | The system SHALL support importing requirements from at least one industry-standard format (ReqIF 1.2) to enable migration from legacy tools. | SHALL | Planned |
+| FR-1242 | The system SHALL expose all functionality via a documented REST API, enabling third-party integration without proprietary scripting languages or tooling. | SHALL | Implemented |
+
+*Rationale: DOORS Classic's proprietary data structures and DXL scripting create severe vendor lock-in. Migration from DOORS Classic to DOORS NG is so painful that IBM treats it as a new deployment. Open data storage and standard APIs eliminate this class of problem entirely.*
+
+---
+
 ## Requirement Count Summary
 
 | Status | Count |
 |--------|-------|
-| Implemented | 109 |
-| Partial | 4 |
-| Planned | 63 |
-| **Total** | **176** |
+| Implemented | 118 |
+| Partial | 5 |
+| Planned | 73 |
+| **Total** | **196** |

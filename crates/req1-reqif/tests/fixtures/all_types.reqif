@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<REQ-IF xmlns="http://www.omg.org/spec/ReqIF/20110401/reqif.xsd">
+  <THE-HEADER>
+    <REQ-IF-HEADER IDENTIFIER="header-all">
+      <COMMENT>All types test fixture</COMMENT>
+      <CREATION-TIME>2024-06-01T12:00:00+00:00</CREATION-TIME>
+      <REPOSITORY-ID>repo-test-1</REPOSITORY-ID>
+      <REQ-IF-TOOL-ID>req1-test</REQ-IF-TOOL-ID>
+      <REQ-IF-VERSION>1.2</REQ-IF-VERSION>
+      <SOURCE-TOOL-ID>req1-test</SOURCE-TOOL-ID>
+      <TITLE>All Types ReqIF</TITLE>
+    </REQ-IF-HEADER>
+  </THE-HEADER>
+  <CORE-CONTENT>
+    <REQ-IF-CONTENT>
+      <DATATYPES>
+        <DATATYPE-DEFINITION-BOOLEAN IDENTIFIER="dt-bool"/>
+        <DATATYPE-DEFINITION-DATE IDENTIFIER="dt-date"/>
+        <DATATYPE-DEFINITION-ENUMERATION IDENTIFIER="dt-enum">
+          <SPECIFIED-VALUES>
+            <ENUM-VALUE IDENTIFIER="ev-1" LONG-NAME="Low">
+              <PROPERTIES>
+                <EMBEDDED-VALUE KEY="0" OTHER-CONTENT="low"/>
+              </PROPERTIES>
+            </ENUM-VALUE>
+            <ENUM-VALUE IDENTIFIER="ev-2" LONG-NAME="Medium">
+              <PROPERTIES>
+                <EMBEDDED-VALUE KEY="1"/>
+              </PROPERTIES>
+            </ENUM-VALUE>
+            <ENUM-VALUE IDENTIFIER="ev-3" LONG-NAME="High">
+              <PROPERTIES>
+                <EMBEDDED-VALUE KEY="2"/>
+              </PROPERTIES>
+            </ENUM-VALUE>
+          </SPECIFIED-VALUES>
+        </DATATYPE-DEFINITION-ENUMERATION>
+        <DATATYPE-DEFINITION-INTEGER IDENTIFIER="dt-int" MIN="0" MAX="999"/>
+        <DATATYPE-DEFINITION-REAL IDENTIFIER="dt-real" MIN="0.0" MAX="100.0" ACCURACY="2"/>
+        <DATATYPE-DEFINITION-STRING IDENTIFIER="dt-string" MAX-LENGTH="4096"/>
+        <DATATYPE-DEFINITION-XHTML IDENTIFIER="dt-xhtml"/>
+      </DATATYPES>
+      <SPEC-TYPES>
+        <SPEC-OBJECT-TYPE IDENTIFIER="sot-all" LONG-NAME="AllFieldsType">
+          <SPEC-ATTRIBUTES>
+            <ATTRIBUTE-DEFINITION-BOOLEAN IDENTIFIER="ad-bool" LONG-NAME="IsApproved" IS-EDITABLE="true">
+              <TYPE>
+                <DATATYPE-DEFINITION-BOOLEAN-REF>dt-bool</DATATYPE-DEFINITION-BOOLEAN-REF>
+              </TYPE>
+            </ATTRIBUTE-DEFINITION-BOOLEAN>
+            <ATTRIBUTE-DEFINITION-DATE IDENTIFIER="ad-date" LONG-NAME="DueDate">
+              <TYPE>
+                <DATATYPE-DEFINITION-DATE-REF>dt-date</DATATYPE-DEFINITION-DATE-REF>
+              </TYPE>
+            </ATTRIBUTE-DEFINITION-DATE>
+            <ATTRIBUTE-DEFINITION-ENUMERATION IDENTIFIER="ad-enum" LONG-NAME="Priority">
+              <TYPE>
+                <DATATYPE-DEFINITION-ENUMERATION-REF>dt-enum</DATATYPE-DEFINITION-ENUMERATION-REF>
+              </TYPE>
+            </ATTRIBUTE-DEFINITION-ENUMERATION>
+            <ATTRIBUTE-DEFINITION-INTEGER IDENTIFIER="ad-int" LONG-NAME="Effort">
+              <TYPE>
+                <DATATYPE-DEFINITION-INTEGER-REF>dt-int</DATATYPE-DEFINITION-INTEGER-REF>
+              </TYPE>
+            </ATTRIBUTE-DEFINITION-INTEGER>
+            <ATTRIBUTE-DEFINITION-REAL IDENTIFIER="ad-real" LONG-NAME="Confidence">
+              <TYPE>
+                <DATATYPE-DEFINITION-REAL-REF>dt-real</DATATYPE-DEFINITION-REAL-REF>
+              </TYPE>
+            </ATTRIBUTE-DEFINITION-REAL>
+            <ATTRIBUTE-DEFINITION-STRING IDENTIFIER="ad-string" LONG-NAME="Description">
+              <TYPE>
+                <DATATYPE-DEFINITION-STRING-REF>dt-string</DATATYPE-DEFINITION-STRING-REF>
+              </TYPE>
+            </ATTRIBUTE-DEFINITION-STRING>
+            <ATTRIBUTE-DEFINITION-XHTML IDENTIFIER="ad-xhtml" LONG-NAME="RichText">
+              <TYPE>
+                <DATATYPE-DEFINITION-XHTML-REF>dt-xhtml</DATATYPE-DEFINITION-XHTML-REF>
+              </TYPE>
+            </ATTRIBUTE-DEFINITION-XHTML>
+          </SPEC-ATTRIBUTES>
+        </SPEC-OBJECT-TYPE>
+        <SPEC-RELATION-TYPE IDENTIFIER="srt-1" LONG-NAME="DependsOn"/>
+        <SPECIFICATION-TYPE IDENTIFIER="spec-type-1" LONG-NAME="Document"/>
+        <RELATION-GROUP-TYPE IDENTIFIER="rgt-1" LONG-NAME="LinkGroup"/>
+      </SPEC-TYPES>
+      <SPEC-OBJECTS>
+        <SPEC-OBJECT IDENTIFIER="so-1" LONG-NAME="REQ-001">
+          <TYPE>
+            <SPEC-OBJECT-TYPE-REF>sot-all</SPEC-OBJECT-TYPE-REF>
+          </TYPE>
+          <VALUES>
+            <ATTRIBUTE-VALUE-BOOLEAN THE-VALUE="true">
+              <DEFINITION>
+                <ATTRIBUTE-DEFINITION-BOOLEAN-REF>ad-bool</ATTRIBUTE-DEFINITION-BOOLEAN-REF>
+              </DEFINITION>
+            </ATTRIBUTE-VALUE-BOOLEAN>
+            <ATTRIBUTE-VALUE-DATE THE-VALUE="2024-12-31T00:00:00+00:00">
+              <DEFINITION>
+                <ATTRIBUTE-DEFINITION-DATE-REF>ad-date</ATTRIBUTE-DEFINITION-DATE-REF>
+              </DEFINITION>
+            </ATTRIBUTE-VALUE-DATE>
+            <ATTRIBUTE-VALUE-ENUMERATION>
+              <VALUES>
+                <ENUM-VALUE-REF>ev-2</ENUM-VALUE-REF>
+              </VALUES>
+              <DEFINITION>
+                <ATTRIBUTE-DEFINITION-ENUMERATION-REF>ad-enum</ATTRIBUTE-DEFINITION-ENUMERATION-REF>
+              </DEFINITION>
+            </ATTRIBUTE-VALUE-ENUMERATION>
+            <ATTRIBUTE-VALUE-INTEGER THE-VALUE="42">
+              <DEFINITION>
+                <ATTRIBUTE-DEFINITION-INTEGER-REF>ad-int</ATTRIBUTE-DEFINITION-INTEGER-REF>
+              </DEFINITION>
+            </ATTRIBUTE-VALUE-INTEGER>
+            <ATTRIBUTE-VALUE-REAL THE-VALUE="95.5">
+              <DEFINITION>
+                <ATTRIBUTE-DEFINITION-REAL-REF>ad-real</ATTRIBUTE-DEFINITION-REAL-REF>
+              </DEFINITION>
+            </ATTRIBUTE-VALUE-REAL>
+            <ATTRIBUTE-VALUE-STRING THE-VALUE="System shall handle all types.">
+              <DEFINITION>
+                <ATTRIBUTE-DEFINITION-STRING-REF>ad-string</ATTRIBUTE-DEFINITION-STRING-REF>
+              </DEFINITION>
+            </ATTRIBUTE-VALUE-STRING>
+            <ATTRIBUTE-VALUE-XHTML>
+              <THE-VALUE>Bold text</THE-VALUE>
+              <DEFINITION>
+                <ATTRIBUTE-DEFINITION-XHTML-REF>ad-xhtml</ATTRIBUTE-DEFINITION-XHTML-REF>
+              </DEFINITION>
+            </ATTRIBUTE-VALUE-XHTML>
+          </VALUES>
+        </SPEC-OBJECT>
+        <SPEC-OBJECT IDENTIFIER="so-2" LONG-NAME="REQ-002">
+          <TYPE>
+            <SPEC-OBJECT-TYPE-REF>sot-all</SPEC-OBJECT-TYPE-REF>
+          </TYPE>
+          <VALUES>
+            <ATTRIBUTE-VALUE-STRING THE-VALUE="Another requirement.">
+              <DEFINITION>
+                <ATTRIBUTE-DEFINITION-STRING-REF>ad-string</ATTRIBUTE-DEFINITION-STRING-REF>
+              </DEFINITION>
+            </ATTRIBUTE-VALUE-STRING>
+          </VALUES>
+        </SPEC-OBJECT>
+        <SPEC-OBJECT IDENTIFIER="so-3" LONG-NAME="REQ-003">
+          <TYPE>
+            <SPEC-OBJECT-TYPE-REF>sot-all</SPEC-OBJECT-TYPE-REF>
+          </TYPE>
+        </SPEC-OBJECT>
+      </SPEC-OBJECTS>
+      <SPEC-RELATIONS>
+        <SPEC-RELATION IDENTIFIER="sr-1" LONG-NAME="REQ-001 depends on REQ-002">
+          <TYPE>
+            <SPEC-RELATION-TYPE-REF>srt-1</SPEC-RELATION-TYPE-REF>
+          </TYPE>
+          <SOURCE>
+            <SPEC-OBJECT-REF>so-1</SPEC-OBJECT-REF>
+          </SOURCE>
+          <TARGET>
+            <SPEC-OBJECT-REF>so-2</SPEC-OBJECT-REF>
+          </TARGET>
+        </SPEC-RELATION>
+      </SPEC-RELATIONS>
+      <SPECIFICATIONS>
+        <SPECIFICATION IDENTIFIER="spec-1" LONG-NAME="Test Document">
+          <TYPE>
+            <SPECIFICATION-TYPE-REF>spec-type-1</SPECIFICATION-TYPE-REF>
+          </TYPE>
+          <CHILDREN>
+            <SPEC-HIERARCHY IDENTIFIER="sh-1">
+              <OBJECT>
+                <SPEC-OBJECT-REF>so-1</SPEC-OBJECT-REF>
+              </OBJECT>
+              <CHILDREN>
+                <SPEC-HIERARCHY IDENTIFIER="sh-2">
+                  <OBJECT>
+                    <SPEC-OBJECT-REF>so-3</SPEC-OBJECT-REF>
+                  </OBJECT>
+                </SPEC-HIERARCHY>
+              </CHILDREN>
+            </SPEC-HIERARCHY>
+            <SPEC-HIERARCHY IDENTIFIER="sh-3">
+              <OBJECT>
+                <SPEC-OBJECT-REF>so-2</SPEC-OBJECT-REF>
+              </OBJECT>
+            </SPEC-HIERARCHY>
+          </CHILDREN>
+        </SPECIFICATION>
+      </SPECIFICATIONS>
+      <SPEC-RELATION-GROUPS>
+        <RELATION-GROUP IDENTIFIER="rg-1" LONG-NAME="Group 1">
+          <TYPE>
+            <RELATION-GROUP-TYPE-REF>rgt-1</RELATION-GROUP-TYPE-REF>
+          </TYPE>
+          <SOURCE-SPECIFICATION>
+            <SPECIFICATION-REF>spec-1</SPECIFICATION-REF>
+          </SOURCE-SPECIFICATION>
+          <TARGET-SPECIFICATION>
+            <SPECIFICATION-REF>spec-1</SPECIFICATION-REF>
+          </TARGET-SPECIFICATION>
+          <SPEC-RELATIONS>
+            <SPEC-RELATION-REF>sr-1</SPEC-RELATION-REF>
+          </SPEC-RELATIONS>
+        </RELATION-GROUP>
+      </SPEC-RELATION-GROUPS>
+    </REQ-IF-CONTENT>
+  </CORE-CONTENT>
+</REQ-IF>

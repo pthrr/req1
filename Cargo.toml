@@ -33,3 +33,4 @@ deno_error = "0.5"
 minijinja = { version = "2", features = ["loader"] }
 pulldown-cmark = "0.12"
 clap = { version = "4", features = ["derive"] }
+quick-xml = { version = "0.37", features = ["serialize"] }

@@ -44,6 +44,7 @@ The keywords "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", and "MAY" in this doc
 | FR-9xx | Review, Collaboration & Workflow |
 | FR-10xx | Publishing & Reporting |
 | FR-11xx | Integration Interfaces |
+| FR-12xx | Usability & Production Readiness |
 | CERT-1xx | Data Integrity |
 | CERT-2xx | Traceability Evidence |
 | CERT-3xx | Change Management |

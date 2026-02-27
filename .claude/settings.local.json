@@ -42,7 +42,8 @@
       "Bash(cargo:*)",
       "WebFetch(domain:docs.rs)",
       "WebFetch(domain:crates.io)",
-      "WebFetch(domain:deno.com)"
+      "WebFetch(domain:deno.com)",
+      "WebFetch(domain:www.omg.org)"
     ]
   }
 }

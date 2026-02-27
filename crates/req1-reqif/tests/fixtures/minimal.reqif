@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<REQ-IF xmlns="http://www.omg.org/spec/ReqIF/20110401/reqif.xsd">
+  <THE-HEADER>
+    <REQ-IF-HEADER IDENTIFIER="header-1">
+      <COMMENT>Minimal test fixture</COMMENT>
+      <CREATION-TIME>2024-01-15T10:00:00+00:00</CREATION-TIME>
+      <REQ-IF-TOOL-ID>req1-test</REQ-IF-TOOL-ID>
+      <REQ-IF-VERSION>1.2</REQ-IF-VERSION>
+      <SOURCE-TOOL-ID>req1-test</SOURCE-TOOL-ID>
+      <TITLE>Minimal ReqIF</TITLE>
+    </REQ-IF-HEADER>
+  </THE-HEADER>
+  <CORE-CONTENT>
+    <REQ-IF-CONTENT>
+      <DATATYPES>
+        <DATATYPE-DEFINITION-STRING IDENTIFIER="dt-string-1" LONG-NAME="Text" MAX-LENGTH="4096"/>
+      </DATATYPES>
+      <SPEC-TYPES>
+        <SPEC-OBJECT-TYPE IDENTIFIER="sot-1" LONG-NAME="Requirement">
+          <SPEC-ATTRIBUTES>
+            <ATTRIBUTE-DEFINITION-STRING IDENTIFIER="ad-string-1" LONG-NAME="Description">
+              <TYPE>
+                <DATATYPE-DEFINITION-STRING-REF>dt-string-1</DATATYPE-DEFINITION-STRING-REF>
+              </TYPE>
+            </ATTRIBUTE-DEFINITION-STRING>
+          </SPEC-ATTRIBUTES>
+        </SPEC-OBJECT-TYPE>
+        <SPECIFICATION-TYPE IDENTIFIER="spec-type-1" LONG-NAME="Document"/>
+      </SPEC-TYPES>
+      <SPEC-OBJECTS>
+        <SPEC-OBJECT IDENTIFIER="so-1" LONG-NAME="REQ-001">
+          <TYPE>
+            <SPEC-OBJECT-TYPE-REF>sot-1</SPEC-OBJECT-TYPE-REF>
+          </TYPE>
+          <VALUES>
+            <ATTRIBUTE-VALUE-STRING THE-VALUE="The system shall do something.">
+              <DEFINITION>
+                <ATTRIBUTE-DEFINITION-STRING-REF>ad-string-1</ATTRIBUTE-DEFINITION-STRING-REF>
+              </DEFINITION>
+            </ATTRIBUTE-VALUE-STRING>
+          </VALUES>
+        </SPEC-OBJECT>
+      </SPEC-OBJECTS>
+      <SPECIFICATIONS>
+        <SPECIFICATION IDENTIFIER="spec-1" LONG-NAME="Test Specification">
+          <TYPE>
+            <SPECIFICATION-TYPE-REF>spec-type-1</SPECIFICATION-TYPE-REF>
+          </TYPE>
+          <CHILDREN>
+            <SPEC-HIERARCHY IDENTIFIER="sh-1">
+              <OBJECT>
+                <SPEC-OBJECT-REF>so-1</SPEC-OBJECT-REF>
+              </OBJECT>
+            </SPEC-HIERARCHY>
+          </CHILDREN>
+        </SPECIFICATION>
+      </SPECIFICATIONS>
+    </REQ-IF-CONTENT>
+  </CORE-CONTENT>
+</REQ-IF>
