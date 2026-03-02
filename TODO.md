@@ -29,7 +29,7 @@
 - [x] Baseline diff viewer with expandable modified rows and word-level diff
 - [x] Module config: prefix, separator, digits, required_attributes, default_classification
 - [x] Settings tab in frontend
-- [x] CLI: list/create/update/delete, validate, review, publish, tree view, JSON output
+- [x] CLI: list/create/update/delete, validate, review, publish, import, export, tree view, JSON output
 - [x] Data model: external references (JSONB on object)
 - [x] Data model: saved views table (column_config, filter_config, sort_config)
 - [x] Data model: object types table + FK on object
@@ -58,7 +58,7 @@ Doorstop supports CSV, TSV, XLSX, YAML for both import and export. We have zero.
 
 - [ ] CSV export (CLI `req1 export --format csv` + API endpoint)
 - [ ] CSV import (CLI `req1 import --format csv` + API endpoint)
-- [-] ReqIF import/export (crate `req1-reqif` exists as empty stub) — Doorstop lacks this too, so it's a differentiator
+- [x] ReqIF import/export (XML library, entity mapping, API endpoints, CLI commands) — Doorstop lacks this, so it's a differentiator
 - [ ] YAML export (full round-trip, Doorstop's native format)
 
 ### Additional Publish Formats
@@ -76,10 +76,10 @@ Doorstop publishes to HTML, LaTeX, Markdown, and plain text. We have HTML only.
 
 Doorstop has CLI `reorder` and GUI indent/dedent. Our position/parent_id editing is too low-level.
 
-- [ ] Drag-and-drop reorder in grid
-- [ ] Indent / dedent buttons (reparent object one level up/down)
-- [ ] Move up / move down within siblings
-- [ ] CLI `reorder` command
+- [x] Drag-and-drop reorder in grid
+- [x] Indent / dedent buttons (reparent object one level up/down)
+- [x] Move up / move down within siblings
+- [x] CLI `reorder` command
 
 ### External References
 

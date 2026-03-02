@@ -20,6 +20,7 @@ anyhow = "1"
 sea-orm-migration = { workspace = true }
 
 req1-core = { path = "../req1-core" }
+req1-reqif = { path = "../req1-reqif" }
 entity = { path = "../../entity" }
 migration = { path = "../../migration" }
 

@@ -133,7 +133,7 @@ sequenceDiagram
     participant PG as PostgreSQL
 
     User->>SPA: Upload .reqif file
-    SPA->>API: POST /api/import/reqif<br/>Content-Type: multipart/form-data
+    SPA->>API: POST /api/v1/projects/{project_id}/reqif/import<br/>Content-Type: multipart/form-data
 
     API->>ReqIF: Parse XML (quick-xml + serde)
     ReqIF->>ReqIF: Deserialize ReqIF XML into Rust structs<br/>(REQ-IF → SPEC-TYPES → SPEC-OBJECTS<br/>→ SPEC-RELATIONS → SPECIFICATIONS)
@@ -149,7 +149,7 @@ sequenceDiagram
     ReqIF->>PG: Bulk INSERT links
     ReqIF->>PG: COMMIT
 
-    API-->>SPA: 200 OK { imported: { objects: 1234,<br/>links: 567, attributes: 42 } }
+    API-->>SPA: 201 Created { module_id, objects_created,<br/>links_created, attribute_definitions_created,<br/>object_types_created, link_types_created }
     SPA->>SPA: Show import summary
 ```
 

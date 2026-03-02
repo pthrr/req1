@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { Outlet, useLocation, useParams } from "react-router";
 import { Sidebar } from "./Sidebar";
-import { theme } from "./theme";
+import { useTheme } from "./ThemeContext";
 
 export function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { theme, mode, toggleMode } = useTheme();
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: theme.fontFamily }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: theme.fontFamily, background: theme.colors.bg, color: theme.colors.text }}>
       {/* Header */}
       <header
         style={{
@@ -18,9 +19,24 @@ export function App() {
           alignItems: "center",
           padding: `0 ${theme.spacing.lg}`,
           flexShrink: 0,
+          justifyContent: "space-between",
         }}
       >
         <Breadcrumbs />
+        <button
+          onClick={toggleMode}
+          style={{
+            padding: "4px 12px",
+            fontSize: "0.85rem",
+            background: "none",
+            border: `1px solid ${theme.colors.border}`,
+            borderRadius: theme.borderRadius,
+            cursor: "pointer",
+            color: theme.colors.text,
+          }}
+        >
+          {mode === "light" ? "Dark" : "Light"}
+        </button>
       </header>
 
       {/* Body: sidebar + main */}
@@ -29,7 +45,7 @@ export function App() {
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed((p) => !p)}
         />
-        <main style={{ flex: 1, overflow: "auto", padding: theme.spacing.lg }}>
+        <main style={{ flex: 1, overflow: "auto", padding: theme.spacing.lg, background: theme.colors.bg }}>
           <Outlet />
         </main>
       </div>
@@ -40,6 +56,7 @@ export function App() {
 function Breadcrumbs() {
   const location = useLocation();
   const params = useParams();
+  const { theme } = useTheme();
   const parts: string[] = ["req1"];
 
   // Build breadcrumbs from URL params

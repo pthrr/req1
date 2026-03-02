@@ -35,7 +35,7 @@ impl MigrationTrait for Migration {
         let _ = db
             .execute_unprepared(&format!(
                 "INSERT INTO script (id, module_id, name, script_type, hook_point, source_code, enabled)
-                 VALUES ('{SCRIPT_ID_LINK_COUNT}', '{SEED_MODULE_ID}', 'Link Count', 'layout', NULL, 'return tostring(#req1.links(obj.id))', true)
+                 VALUES ('{SCRIPT_ID_LINK_COUNT}', '{SEED_MODULE_ID}', 'Link Count', 'layout', NULL, 'return String(req1.links(obj.id).length)', true)
                  ON CONFLICT (id) DO NOTHING"
             ))
             .await?;
@@ -43,7 +43,7 @@ impl MigrationTrait for Migration {
         let _ = db
             .execute_unprepared(&format!(
                 "INSERT INTO script (id, module_id, name, script_type, hook_point, source_code, enabled)
-                 VALUES ('{SCRIPT_ID_CLASSIFICATION}', '{SEED_MODULE_ID}', 'Classification Badge', 'layout', NULL, 'return obj.classification and string.upper(string.sub(obj.classification, 1, 1)) or \"?\"', true)
+                 VALUES ('{SCRIPT_ID_CLASSIFICATION}', '{SEED_MODULE_ID}', 'Classification Badge', 'layout', NULL, 'return obj.classification ? obj.classification.charAt(0).toUpperCase() : \"?\"', true)
                  ON CONFLICT (id) DO NOTHING"
             ))
             .await?;
@@ -51,7 +51,7 @@ impl MigrationTrait for Migration {
         let _ = db
             .execute_unprepared(&format!(
                 "INSERT INTO script (id, module_id, name, script_type, hook_point, source_code, enabled)
-                 VALUES ('{SCRIPT_ID_HAS_BODY}', '{SEED_MODULE_ID}', 'Has Body', 'layout', NULL, 'return obj.body and \"Yes\" or \"No\"', true)
+                 VALUES ('{SCRIPT_ID_HAS_BODY}', '{SEED_MODULE_ID}', 'Has Body', 'layout', NULL, 'return obj.body ? \"Yes\" : \"No\"', true)
                  ON CONFLICT (id) DO NOTHING"
             ))
             .await?;

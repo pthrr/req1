@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router";
 import { App } from "./App";
+import { ThemeProvider } from "./ThemeContext";
 import { WelcomePage } from "./pages/WelcomePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { ProjectPage } from "./pages/ProjectPage";
@@ -10,6 +11,7 @@ import { TraceabilityPage } from "./pages/TraceabilityPage";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
+    <ThemeProvider>
     <BrowserRouter>
       <Routes>
         <Route element={<App />}>
@@ -21,5 +23,6 @@ createRoot(document.getElementById("root")!).render(
         </Route>
       </Routes>
     </BrowserRouter>
+    </ThemeProvider>
   </StrictMode>,
 );

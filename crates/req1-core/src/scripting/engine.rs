@@ -231,7 +231,7 @@ fn op_log(#[string] msg: String) {
 }
 
 #[op2(fast)]
-fn op_print(state: &mut OpState, #[string] msg: String) {
+fn op_script_print(state: &mut OpState, #[string] msg: String) {
     state.borrow_mut::<ScriptState>().output.push(msg);
 }
 
@@ -251,7 +251,7 @@ deno_core::extension!(
         op_set,
         op_reject,
         op_log,
-        op_print,
+        op_script_print,
     ],
 );
 

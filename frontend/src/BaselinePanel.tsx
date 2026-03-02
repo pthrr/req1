@@ -3,6 +3,7 @@ import {
   api,
   type Baseline,
   type BaselineDiff,
+  type BaselineSet,
   type BaselineWithEntries,
 } from "./api/client";
 import { InlineDiff, AttributesDiff } from "./DiffView";
@@ -27,6 +28,12 @@ export function BaselinePanel({ moduleId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [expandedModified, setExpandedModified] = useState<Set<string>>(new Set());
   const [newName, setNewName] = useState("");
+  const [baselineSets, setBaselineSets] = useState<BaselineSet[]>([]);
+  const [selectedSetId, setSelectedSetId] = useState("");
+  const [filterSetId, setFilterSetId] = useState("");
+  const [newSetName, setNewSetName] = useState("");
+  const [newSetVersion, setNewSetVersion] = useState("");
+  const [showSetForm, setShowSetForm] = useState(false);
 
   const fetchBaselines = useCallback(async () => {
     try {
@@ -38,21 +45,61 @@ export function BaselinePanel({ moduleId }: Props) {
     }
   }, [moduleId]);
 
+  const fetchBaselineSets = useCallback(async () => {
+    try {
+      const data = await api.listBaselineSets();
+      setBaselineSets(data.items);
+    } catch {
+      // Non-critical
+    }
+  }, []);
+
   useEffect(() => {
     fetchBaselines();
-  }, [fetchBaselines]);
+    fetchBaselineSets();
+  }, [fetchBaselines, fetchBaselineSets]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
     try {
-      await api.createBaseline(moduleId, { name: newName.trim() });
+      await api.createBaseline(moduleId, {
+        name: newName.trim(),
+        baseline_set_id: selectedSetId || undefined,
+      });
       setNewName("");
+      setSelectedSetId("");
       fetchBaselines();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create baseline");
     }
   };
+
+  const handleCreateSet = async () => {
+    if (!newSetName.trim() || !newSetVersion.trim()) return;
+    try {
+      await api.createBaselineSet({ name: newSetName.trim(), version: newSetVersion.trim() });
+      setNewSetName("");
+      setNewSetVersion("");
+      setShowSetForm(false);
+      fetchBaselineSets();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create baseline set");
+    }
+  };
+
+  const handleDeleteSet = async (id: string) => {
+    try {
+      await api.deleteBaselineSet(id);
+      fetchBaselineSets();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete baseline set");
+    }
+  };
+
+  const filteredBaselines = filterSetId
+    ? baselines.filter((bl) => bl.baseline_set_id === filterSetId)
+    : baselines;
 
   const handleView = async (id: string) => {
     try {
@@ -90,6 +137,77 @@ export function BaselinePanel({ moduleId }: Props) {
     <div>
       {error && <div style={{ color: "red", marginBottom: "0.5rem" }}>{error}</div>}
 
+      {/* Baseline Sets Section */}
+      <div style={{ marginBottom: "1rem", padding: "0.5rem", background: "#f8f9fa", borderRadius: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+          <h4 style={{ margin: 0 }}>Baseline Sets</h4>
+          <button onClick={() => setShowSetForm((p) => !p)} style={{ padding: "0.25rem 0.5rem", fontSize: "0.85rem" }}>
+            {showSetForm ? "Cancel" : "New Set"}
+          </button>
+        </div>
+
+        {showSetForm && (
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+            <input
+              type="text"
+              value={newSetName}
+              onChange={(e) => setNewSetName(e.target.value)}
+              placeholder="Set name"
+              style={{ padding: "0.25rem", flex: 1 }}
+            />
+            <input
+              type="text"
+              value={newSetVersion}
+              onChange={(e) => setNewSetVersion(e.target.value)}
+              placeholder="Version"
+              style={{ padding: "0.25rem", width: 80 }}
+            />
+            <button onClick={handleCreateSet} style={{ padding: "0.25rem 0.5rem" }}>
+              Create
+            </button>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <button
+            onClick={() => setFilterSetId("")}
+            style={{
+              padding: "2px 8px",
+              fontSize: "0.8rem",
+              background: !filterSetId ? "#e3f2fd" : "transparent",
+              border: "1px solid #ddd",
+              borderRadius: 3,
+              cursor: "pointer",
+            }}
+          >
+            All
+          </button>
+          {baselineSets.map((s) => (
+            <span key={s.id} style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+              <button
+                onClick={() => setFilterSetId(s.id)}
+                style={{
+                  padding: "2px 8px",
+                  fontSize: "0.8rem",
+                  background: filterSetId === s.id ? "#e3f2fd" : "transparent",
+                  border: "1px solid #ddd",
+                  borderRadius: 3,
+                  cursor: "pointer",
+                }}
+              >
+                {s.name} v{s.version}
+              </button>
+              <button
+                onClick={() => handleDeleteSet(s.id)}
+                style={{ padding: "1px 4px", fontSize: "0.7rem", border: "none", background: "none", cursor: "pointer", color: "#d32f2f" }}
+              >
+                x
+              </button>
+            </span>
+          ))}
+        </div>
+      </div>
+
       <form
         onSubmit={handleCreate}
         style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}
@@ -101,6 +219,18 @@ export function BaselinePanel({ moduleId }: Props) {
           placeholder="Baseline name"
           style={{ padding: "0.25rem", flex: 1 }}
         />
+        {baselineSets.length > 0 && (
+          <select
+            value={selectedSetId}
+            onChange={(e) => setSelectedSetId(e.target.value)}
+            style={{ padding: "0.25rem" }}
+          >
+            <option value="">(no set)</option>
+            {baselineSets.map((s) => (
+              <option key={s.id} value={s.id}>{s.name} v{s.version}</option>
+            ))}
+          </select>
+        )}
         <button type="submit" style={{ padding: "0.25rem 0.75rem" }}>
           Create Baseline
         </button>
@@ -110,28 +240,33 @@ export function BaselinePanel({ moduleId }: Props) {
         <thead>
           <tr>
             <th style={thStyle}>Name</th>
+            <th style={thStyle}>Set</th>
             <th style={thStyle}>Created</th>
             <th style={thStyle}>Locked</th>
             <th style={{ borderBottom: "1px solid #ccc", padding: "0.25rem" }} />
           </tr>
         </thead>
         <tbody>
-          {baselines.map((bl) => (
-            <tr key={bl.id}>
-              <td style={cellStyle}>{bl.name}</td>
-              <td style={cellStyle}>{new Date(bl.created_at).toLocaleString()}</td>
-              <td style={cellStyle}>{bl.locked ? "Yes" : "No"}</td>
-              <td style={cellStyle}>
-                <button onClick={() => handleView(bl.id)} style={{ marginRight: "0.25rem" }}>
-                  View
-                </button>
-                <button onClick={() => handleDelete(bl.id)}>Delete</button>
-              </td>
-            </tr>
-          ))}
-          {baselines.length === 0 && (
+          {filteredBaselines.map((bl) => {
+            const set = baselineSets.find((s) => s.id === bl.baseline_set_id);
+            return (
+              <tr key={bl.id}>
+                <td style={cellStyle}>{bl.name}</td>
+                <td style={cellStyle}>{set ? `${set.name} v${set.version}` : "-"}</td>
+                <td style={cellStyle}>{new Date(bl.created_at).toLocaleString()}</td>
+                <td style={cellStyle}>{bl.locked ? "Yes" : "No"}</td>
+                <td style={cellStyle}>
+                  <button onClick={() => handleView(bl.id)} style={{ marginRight: "0.25rem" }}>
+                    View
+                  </button>
+                  <button onClick={() => handleDelete(bl.id)}>Delete</button>
+                </td>
+              </tr>
+            );
+          })}
+          {filteredBaselines.length === 0 && (
             <tr>
-              <td colSpan={4} style={{ padding: "0.5rem", textAlign: "center", color: "#999" }}>
+              <td colSpan={5} style={{ padding: "0.5rem", textAlign: "center", color: "#999" }}>
                 No baselines yet.
               </td>
             </tr>
@@ -139,7 +274,7 @@ export function BaselinePanel({ moduleId }: Props) {
         </tbody>
       </table>
 
-      {baselines.length >= 2 && (
+      {filteredBaselines.length >= 2 && (
         <div
           style={{
             display: "flex",
@@ -151,7 +286,7 @@ export function BaselinePanel({ moduleId }: Props) {
           <span style={{ fontSize: "0.9rem" }}>Compare:</span>
           <select value={diffA} onChange={(e) => setDiffA(e.target.value)}>
             <option value="">Baseline A</option>
-            {baselines.map((bl) => (
+            {filteredBaselines.map((bl) => (
               <option key={bl.id} value={bl.id}>
                 {bl.name}
               </option>
@@ -160,7 +295,7 @@ export function BaselinePanel({ moduleId }: Props) {
           <span>vs</span>
           <select value={diffB} onChange={(e) => setDiffB(e.target.value)}>
             <option value="">Baseline B</option>
-            {baselines.map((bl) => (
+            {filteredBaselines.map((bl) => (
               <option key={bl.id} value={bl.id}>
                 {bl.name}
               </option>

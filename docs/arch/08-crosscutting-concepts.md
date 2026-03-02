@@ -145,31 +145,46 @@ Returns: added objects, removed objects, modified objects with per-attribute cha
 
 ## 8.6 ReqIF Interchange
 
-### Implementation
+### Implementation (Implemented)
 
-- Custom standalone Rust crate using `quick-xml` + `serde`
-- Rust structs matching the ReqIF 1.2 XSD schema
-- Serde derive for XML serialization/deserialization
+- **`req1-reqif` crate**: Standalone Rust library using `quick-xml` + `serde` with typed structs matching the ReqIF 1.2 XSD schema. Supports `.reqif` and `.reqifz` archives.
+- **`req1-core::reqif` module**: Bidirectional entity mapping layer converting between ReqIF XML structures and Sea-ORM entities.
+  - `type_map.rs` — datatype conversion (7 ReqIF types ↔ entity attribute types), attribute value JSON serialization
+  - `import.rs` — `import_reqif()`: ReqIF document → DB entities (module, object types, attribute definitions, objects, links) in a single transaction
+  - `export.rs` — `export_reqif()`: DB entities → ReqIF document with deterministic `"req1-{uuid}"` identifiers
 
 ### Import Pipeline
 
-1. Parse XML into typed Rust structs
-2. Map `SPEC-TYPES` → req1 attribute definitions
-3. Map `SPEC-OBJECTS` → req1 objects (with JSONB attributes)
-4. Map `SPEC-RELATIONS` → req1 links
-5. Bulk insert in a single transaction
+1. Parse XML into typed Rust structs (`req1-reqif`)
+2. Map `SPEC-OBJECT-TYPES` → `object_type` + `attribute_definition` entities
+3. Map `SPEC-RELATION-TYPES` → `link_type` entities
+4. Map `SPEC-OBJECTS` → `object` entities (with JSONB attributes resolved from attribute values)
+5. Walk `SPEC-HIERARCHY` tree → set `parent_id` and `position` on objects
+6. Map `SPEC-RELATIONS` → `link` entities
+7. All inserts in a single transaction with rollback on failure
 
 ### Export Pipeline
 
-1. Query objects, attributes, links from PostgreSQL
-2. Map to ReqIF struct hierarchy
-3. Serialize to XML via `quick-xml`
+1. Load module, objects, attribute definitions, object types, links, and link types from PostgreSQL
+2. Build ReqIF datatypes, spec types, spec objects, spec hierarchy, and spec relations
+3. Assemble via `ReqIfBuilder` and serialize to XML via `quick-xml`
+
+### API Routes
+
+- **Import**: `POST /api/v1/projects/{project_id}/reqif/import` — accepts multipart form data with a `.reqif` or `.reqifz` file. Parses the file, calls `import_reqif()`, returns `201 Created` with JSON summary (module_id, counts of created entities).
+- **Export**: `GET /api/v1/modules/{module_id}/reqif/export?format=reqif|reqifz` — calls `export_reqif()`, serializes to XML or `.reqifz` archive, returns binary response with `Content-Type: application/xml` (or `application/zip`) and `Content-Disposition: attachment` header.
+
+### CLI Commands
+
+- `req1 import --project-id <UUID> --file <path> [--format reqif|reqifz]` — reads file from disk, uploads as multipart POST, prints import summary.
+- `req1 export --module-id <UUID> --output <path> [--format reqif|reqifz]` — downloads export from server, saves to disk, prints byte count.
 
 ### Round-Trip Fidelity
 
 - All standard ReqIF attribute types preserved (string, integer, real, date, enum, XHTML)
 - Custom attributes round-trip via `ATTRIBUTE-DEFINITION` mappings
-- Embedded images/OLE objects stored in SeaweedFS, referenced in ReqIF output
+- Deterministic identifiers (`"req1-{uuid}"`) enable re-import
+- Embedded images/OLE objects stored in SeaweedFS, referenced in ReqIF output (planned)
 
 ## 8.7 Document Export
 

@@ -1,7 +1,7 @@
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
-    routing::get,
+    routing::{get, post},
 };
 use sea_orm::{
     ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait,
@@ -12,7 +12,9 @@ use crate::{error::AppError, state::AppState};
 use entity::object_history;
 use req1_core::{
     PaginatedResponse, Pagination,
-    service::object::{CreateObjectInput, ListObjectsFilter, ObjectService, UpdateObjectInput},
+    service::object::{
+        CreateObjectInput, ListObjectsFilter, MoveObjectInput, ObjectService, UpdateObjectInput,
+    },
 };
 
 pub fn routes() -> Router<AppState> {
@@ -24,6 +26,10 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/modules/{module_id}/objects/{id}",
             get(get_object).patch(update_object).delete(delete_object),
+        )
+        .route(
+            "/modules/{module_id}/objects/{id}/move",
+            post(move_object),
         )
         .route(
             "/modules/{module_id}/objects/{id}/history",
@@ -82,6 +88,17 @@ async fn delete_object(
     ObjectService::delete(&txn, id).await?;
     txn.commit().await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+async fn move_object(
+    State(state): State<AppState>,
+    Path((module_id, id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<MoveObjectInput>,
+) -> Result<Json<entity::object::Model>, AppError> {
+    let txn = state.db.begin().await?;
+    let result = ObjectService::move_object(&txn, module_id, id, body).await?;
+    txn.commit().await?;
+    Ok(Json(result))
 }
 
 async fn list_object_history(

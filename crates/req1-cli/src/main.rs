@@ -70,6 +70,42 @@ enum Command {
         #[arg(long)]
         link_id: String,
     },
+    /// Import a `ReqIF` file into a project
+    Import {
+        /// Project ID
+        #[arg(long)]
+        project_id: String,
+        /// Path to .reqif or .reqifz file
+        #[arg(long, short)]
+        file: String,
+        /// File format (reqif or reqifz, auto-detected from extension if omitted)
+        #[arg(long)]
+        format: Option<String>,
+    },
+    /// Reorder an object within its module
+    Reorder {
+        /// Module ID
+        #[arg(long)]
+        module_id: String,
+        /// Object ID to move
+        #[arg(long)]
+        object_id: String,
+        /// Action: up, down, indent, dedent
+        #[arg(long)]
+        action: String,
+    },
+    /// Export a module to `ReqIF`
+    Export {
+        /// Module ID
+        #[arg(long)]
+        module_id: String,
+        /// Output file path
+        #[arg(long, short)]
+        output: String,
+        /// Export format: reqif (default) or reqifz
+        #[arg(long, default_value = "reqif")]
+        format: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -255,6 +291,21 @@ async fn main() -> Result<()> {
         Command::ResolveSuspect { link_id } => {
             cmd_resolve_suspect(&client, base, &link_id).await?;
         }
+        Command::Reorder {
+            module_id,
+            object_id,
+            action,
+        } => cmd_reorder(&client, base, &module_id, &object_id, &action).await?,
+        Command::Import {
+            project_id,
+            file,
+            format,
+        } => cmd_import(&client, base, &project_id, &file, format.as_deref()).await?,
+        Command::Export {
+            module_id,
+            output,
+            format,
+        } => cmd_export(&client, base, &module_id, &output, &format).await?,
     }
 
     Ok(())
@@ -807,6 +858,127 @@ async fn cmd_resolve_suspect(client: &reqwest::Client, base: &str, link_id: &str
         "Resolved suspect link {} ({} -> {})",
         link.id, link.source_object_id, link.target_object_id
     );
+    Ok(())
+}
+
+async fn cmd_reorder(
+    client: &reqwest::Client,
+    base: &str,
+    module_id: &str,
+    object_id: &str,
+    action: &str,
+) -> Result<()> {
+    let valid_actions = ["up", "down", "indent", "dedent"];
+    if !valid_actions.contains(&action) {
+        anyhow::bail!(
+            "invalid action '{action}', must be one of: {}",
+            valid_actions.join(", ")
+        );
+    }
+
+    let url = format!("{base}/api/v1/modules/{module_id}/objects/{object_id}/move");
+    let payload = serde_json::json!({ "action": action });
+    let resp = client
+        .post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .context("request failed")?;
+
+    ensure_success(&resp)?;
+    let obj: ReqObject = resp.json().await.context("invalid json")?;
+    println!(
+        "Moved object {} {action} (now at level {})",
+        obj.id, obj.level
+    );
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct ImportResponse {
+    module_id: uuid::Uuid,
+    objects_created: usize,
+    links_created: usize,
+    attribute_definitions_created: usize,
+    object_types_created: usize,
+    link_types_created: usize,
+}
+
+async fn cmd_import(
+    client: &reqwest::Client,
+    base: &str,
+    project_id: &str,
+    file_path: &str,
+    format: Option<&str>,
+) -> Result<()> {
+    let data = std::fs::read(file_path).with_context(|| format!("read {file_path}"))?;
+
+    let filename = std::path::Path::new(file_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("upload.reqif")
+        .to_owned();
+
+    let mime = match format {
+        Some("reqifz") => "application/zip",
+        Some("reqif") => "application/xml",
+        _ if filename.ends_with(".reqifz") => "application/zip",
+        _ => "application/xml",
+    };
+
+    let part = reqwest::multipart::Part::bytes(data)
+        .file_name(filename)
+        .mime_str(mime)
+        .context("invalid mime")?;
+
+    let form = reqwest::multipart::Form::new().part("file", part);
+
+    let url = format!("{base}/api/v1/projects/{project_id}/reqif/import");
+    let resp = client
+        .post(&url)
+        .multipart(form)
+        .send()
+        .await
+        .context("request failed")?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        anyhow::bail!("import failed ({status}): {body}");
+    }
+
+    let result: ImportResponse = resp.json().await.context("invalid json")?;
+    println!("Imported ReqIF into module {}", result.module_id);
+    println!(
+        "  {} objects, {} links, {} attribute definitions, {} object types, {} link types",
+        result.objects_created,
+        result.links_created,
+        result.attribute_definitions_created,
+        result.object_types_created,
+        result.link_types_created,
+    );
+    Ok(())
+}
+
+async fn cmd_export(
+    client: &reqwest::Client,
+    base: &str,
+    module_id: &str,
+    output: &str,
+    format: &str,
+) -> Result<()> {
+    let url = format!("{base}/api/v1/modules/{module_id}/reqif/export?format={format}");
+    let resp = client.get(&url).send().await.context("request failed")?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        anyhow::bail!("export failed ({status}): {body}");
+    }
+
+    let bytes = resp.bytes().await.context("read response")?;
+    std::fs::write(output, &bytes).with_context(|| format!("write to {output}"))?;
+    println!("Exported to {output} ({} bytes)", bytes.len());
     Ok(())
 }
 

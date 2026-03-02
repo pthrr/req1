@@ -16,6 +16,7 @@ pub mod object_types;
 pub mod objects;
 pub mod projects;
 pub mod publish;
+pub mod reqif;
 pub mod review_assignments;
 pub mod review_packages;
 pub mod scripts;
@@ -47,4 +48,5 @@ pub fn router() -> Router<AppState> {
         .nest("/api/v1", change_proposals::routes())
         .nest("/api/v1", baseline_sets::routes())
         .nest("/api/v1", impact::routes())
+        .nest("/api/v1", reqif::routes())
 }

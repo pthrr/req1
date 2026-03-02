@@ -24,7 +24,8 @@ impl From<req1_core::error::CoreError> for AppError {
     fn from(err: req1_core::error::CoreError) -> Self {
         match err {
             req1_core::error::CoreError::NotFound(msg) => Self::NotFound(msg),
-            req1_core::error::CoreError::BadRequest(msg) => Self::BadRequest(msg),
+            req1_core::error::CoreError::BadRequest(msg)
+            | req1_core::error::CoreError::Reqif(msg) => Self::BadRequest(msg),
             req1_core::error::CoreError::Internal(msg) => Self::Internal(msg),
             req1_core::error::CoreError::Db(db_err) => Self::DbError(db_err),
         }

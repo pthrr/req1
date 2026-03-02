@@ -31,7 +31,7 @@
     set(objectId, key, value) { core.ops.op_set(objectId, key, value); },
     reject(reason)     { core.ops.op_reject(reason ?? null); },
     log(msg)           { core.ops.op_log(String(msg)); },
-    print(msg)         { core.ops.op_print(String(msg)); },
+    print(msg)         { core.ops.op_script_print(String(msg)); },
   });
 
   // --- Lock down sandbox ---

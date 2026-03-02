@@ -278,7 +278,7 @@ export function ScriptPanel({ moduleId }: Props) {
             <textarea
               value={newSource}
               onChange={(e) => setNewSource(e.target.value)}
-              placeholder="-- Lua source code"
+              placeholder="// JavaScript source code"
               rows={4}
               style={{
                 padding: theme.spacing.sm,

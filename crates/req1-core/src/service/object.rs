@@ -22,6 +22,24 @@ use crate::validation;
 const VALID_CLASSIFICATIONS: &[&str] = &["normative", "informative", "heading"];
 
 #[derive(Debug, Deserialize)]
+#[serde(tag = "action")]
+pub enum MoveObjectInput {
+    #[serde(rename = "up")]
+    Up,
+    #[serde(rename = "down")]
+    Down,
+    #[serde(rename = "indent")]
+    Indent,
+    #[serde(rename = "dedent")]
+    Dedent,
+    #[serde(rename = "move_to")]
+    MoveTo {
+        parent_id: Option<Uuid>,
+        position: i32,
+    },
+}
+
+#[derive(Debug, Deserialize)]
 pub struct CreateObjectInput {
     #[serde(default)]
     pub module_id: Uuid,
@@ -595,6 +613,218 @@ impl ObjectService {
             offset: filter.offset,
             limit: filter.limit,
         })
+    }
+
+    #[allow(clippy::too_many_lines)]
+    pub async fn move_object(
+        db: &impl ConnectionTrait,
+        module_id: Uuid,
+        object_id: Uuid,
+        input: MoveObjectInput,
+    ) -> Result<object::Model, CoreError> {
+        let obj = object::Entity::find_by_id(object_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| CoreError::NotFound(format!("object {object_id} not found")))?;
+
+        if obj.module_id != module_id {
+            return Err(CoreError::BadRequest(
+                "object does not belong to this module".to_owned(),
+            ));
+        }
+
+        match input {
+            MoveObjectInput::Up => {
+                let siblings = object::Entity::find()
+                    .filter(object::Column::ModuleId.eq(module_id))
+                    .filter(if obj.parent_id.is_some() {
+                        object::Column::ParentId.eq(obj.parent_id)
+                    } else {
+                        object::Column::ParentId.is_null()
+                    })
+                    .filter(object::Column::DeletedAt.is_null())
+                    .order_by(object::Column::Position, Order::Asc)
+                    .all(db)
+                    .await?;
+
+                let sibling_idx = siblings
+                    .iter()
+                    .position(|s| s.id == object_id)
+                    .ok_or_else(|| CoreError::Internal("object not in sibling list".to_owned()))?;
+                if sibling_idx == 0 {
+                    return Err(CoreError::BadRequest(
+                        "object is already at the top".to_owned(),
+                    ));
+                }
+
+                let prev = siblings
+                    .get(sibling_idx - 1)
+                    .ok_or_else(|| CoreError::Internal("sibling index out of bounds".to_owned()))?;
+                let prev_pos = prev.position;
+                let obj_pos = obj.position;
+
+                let mut active_prev: object::ActiveModel = prev.clone().into();
+                active_prev.position = Set(obj_pos);
+                let _ = active_prev.update(db).await?;
+
+                let mut active_obj: object::ActiveModel = obj.into();
+                active_obj.position = Set(prev_pos);
+                let _ = active_obj.update(db).await?;
+            }
+            MoveObjectInput::Down => {
+                let siblings = object::Entity::find()
+                    .filter(object::Column::ModuleId.eq(module_id))
+                    .filter(if obj.parent_id.is_some() {
+                        object::Column::ParentId.eq(obj.parent_id)
+                    } else {
+                        object::Column::ParentId.is_null()
+                    })
+                    .filter(object::Column::DeletedAt.is_null())
+                    .order_by(object::Column::Position, Order::Asc)
+                    .all(db)
+                    .await?;
+
+                let sibling_idx = siblings
+                    .iter()
+                    .position(|s| s.id == object_id)
+                    .ok_or_else(|| CoreError::Internal("object not in sibling list".to_owned()))?;
+                if sibling_idx >= siblings.len() - 1 {
+                    return Err(CoreError::BadRequest(
+                        "object is already at the bottom".to_owned(),
+                    ));
+                }
+
+                let next = siblings
+                    .get(sibling_idx + 1)
+                    .ok_or_else(|| CoreError::Internal("sibling index out of bounds".to_owned()))?;
+                let next_pos = next.position;
+                let obj_pos = obj.position;
+
+                let mut active_next: object::ActiveModel = next.clone().into();
+                active_next.position = Set(obj_pos);
+                let _ = active_next.update(db).await?;
+
+                let mut active_obj: object::ActiveModel = obj.into();
+                active_obj.position = Set(next_pos);
+                let _ = active_obj.update(db).await?;
+            }
+            MoveObjectInput::Indent => {
+                let siblings = object::Entity::find()
+                    .filter(object::Column::ModuleId.eq(module_id))
+                    .filter(if obj.parent_id.is_some() {
+                        object::Column::ParentId.eq(obj.parent_id)
+                    } else {
+                        object::Column::ParentId.is_null()
+                    })
+                    .filter(object::Column::DeletedAt.is_null())
+                    .order_by(object::Column::Position, Order::Asc)
+                    .all(db)
+                    .await?;
+
+                let sibling_idx = siblings
+                    .iter()
+                    .position(|s| s.id == object_id)
+                    .ok_or_else(|| CoreError::Internal("object not in sibling list".to_owned()))?;
+                if sibling_idx == 0 {
+                    return Err(CoreError::BadRequest(
+                        "cannot indent: no previous sibling to become parent".to_owned(),
+                    ));
+                }
+
+                let new_parent = siblings
+                    .get(sibling_idx - 1)
+                    .ok_or_else(|| CoreError::Internal("sibling index out of bounds".to_owned()))?;
+                let new_parent_id = new_parent.id;
+
+                // Find max position among children of new parent
+                let max_child_pos: Option<i32> = object::Entity::find()
+                    .filter(object::Column::ModuleId.eq(module_id))
+                    .filter(object::Column::ParentId.eq(new_parent_id))
+                    .filter(object::Column::DeletedAt.is_null())
+                    .order_by(object::Column::Position, Order::Desc)
+                    .one(db)
+                    .await?
+                    .map(|c| c.position);
+
+                let new_pos = max_child_pos.map_or(0, |p| p + 1);
+
+                let mut active_obj: object::ActiveModel = obj.into();
+                active_obj.parent_id = Set(Some(new_parent_id));
+                active_obj.position = Set(new_pos);
+                let _ = active_obj.update(db).await?;
+            }
+            MoveObjectInput::Dedent => {
+                let current_parent_id = obj.parent_id.ok_or_else(|| {
+                    CoreError::BadRequest("cannot dedent: object is already at root level".to_owned())
+                })?;
+
+                let parent = object::Entity::find_by_id(current_parent_id)
+                    .one(db)
+                    .await?
+                    .ok_or_else(|| {
+                        CoreError::Internal(format!("parent {current_parent_id} not found"))
+                    })?;
+
+                let grandparent_id = parent.parent_id;
+                let insert_after_pos = parent.position;
+
+                // Shift subsequent siblings of the parent's level to make room
+                let _ = object::Entity::update_many()
+                    .col_expr(
+                        object::Column::Position,
+                        Expr::col(object::Column::Position).add(1),
+                    )
+                    .filter(object::Column::ModuleId.eq(module_id))
+                    .filter(if grandparent_id.is_some() {
+                        object::Column::ParentId.eq(grandparent_id)
+                    } else {
+                        object::Column::ParentId.is_null()
+                    })
+                    .filter(object::Column::Position.gt(insert_after_pos))
+                    .filter(object::Column::DeletedAt.is_null())
+                    .exec(db)
+                    .await?;
+
+                let mut active_obj: object::ActiveModel = obj.into();
+                active_obj.parent_id = Set(grandparent_id);
+                active_obj.position = Set(insert_after_pos + 1);
+                let _ = active_obj.update(db).await?;
+            }
+            MoveObjectInput::MoveTo {
+                parent_id,
+                position,
+            } => {
+                // Shift siblings at target location to make room
+                let _ = object::Entity::update_many()
+                    .col_expr(
+                        object::Column::Position,
+                        Expr::col(object::Column::Position).add(1),
+                    )
+                    .filter(object::Column::ModuleId.eq(module_id))
+                    .filter(if parent_id.is_some() {
+                        object::Column::ParentId.eq(parent_id)
+                    } else {
+                        object::Column::ParentId.is_null()
+                    })
+                    .filter(object::Column::Position.gte(position))
+                    .filter(object::Column::DeletedAt.is_null())
+                    .filter(object::Column::Id.ne(object_id))
+                    .exec(db)
+                    .await?;
+
+                let mut active_obj: object::ActiveModel = obj.into();
+                active_obj.parent_id = Set(parent_id);
+                active_obj.position = Set(position);
+                let _ = active_obj.update(db).await?;
+            }
+        }
+
+        level::recompute_module_levels(db, module_id).await?;
+
+        object::Entity::find_by_id(object_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| CoreError::Internal("object not found after move".to_owned()))
     }
 }
 

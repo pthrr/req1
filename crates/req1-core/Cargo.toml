@@ -18,3 +18,4 @@ tracing = { workspace = true }
 minijinja = { workspace = true }
 pulldown-cmark = { workspace = true }
 entity = { path = "../../entity" }
+req1-reqif = { path = "../req1-reqif" }

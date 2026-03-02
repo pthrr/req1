@@ -11,6 +11,7 @@ interface Props {
   objects: ReqObject[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  highlightIds?: Set<string>;
 }
 
 function buildTree(objects: ReqObject[]): TreeNode[] {
@@ -49,6 +50,7 @@ function TreeNodeRow({
   onSelect,
   collapsedIds,
   onToggle,
+  highlightIds,
 }: {
   node: TreeNode;
   depth: number;
@@ -56,10 +58,12 @@ function TreeNodeRow({
   onSelect: (id: string) => void;
   collapsedIds: Set<string>;
   onToggle: (id: string) => void;
+  highlightIds?: Set<string>;
 }) {
   const hasChildren = node.children.length > 0;
   const isCollapsed = collapsedIds.has(node.obj.id);
   const isSelected = selectedId === node.obj.id;
+  const isHighlighted = highlightIds?.has(node.obj.id) ?? false;
 
   return (
     <>
@@ -69,7 +73,7 @@ function TreeNodeRow({
           padding: "3px 8px",
           paddingLeft: `${8 + depth * 16}px`,
           cursor: "pointer",
-          background: isSelected ? "#e3f2fd" : "transparent",
+          background: isSelected ? "#e3f2fd" : isHighlighted ? "#fff9c4" : "transparent",
           fontSize: "0.82rem",
           whiteSpace: "nowrap",
           overflow: "hidden",
@@ -121,13 +125,14 @@ function TreeNodeRow({
             onSelect={onSelect}
             collapsedIds={collapsedIds}
             onToggle={onToggle}
+            highlightIds={highlightIds}
           />
         ))}
     </>
   );
 }
 
-export function ObjectTree({ objects, selectedId, onSelect }: Props) {
+export function ObjectTree({ objects, selectedId, onSelect, highlightIds }: Props) {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const tree = useMemo(() => buildTree(objects), [objects]);
 
@@ -174,6 +179,7 @@ export function ObjectTree({ objects, selectedId, onSelect }: Props) {
           onSelect={onSelect}
           collapsedIds={collapsedIds}
           onToggle={handleToggle}
+          highlightIds={highlightIds}
         />
       ))}
     </div>

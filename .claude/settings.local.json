@@ -43,7 +43,9 @@
       "WebFetch(domain:docs.rs)",
       "WebFetch(domain:crates.io)",
       "WebFetch(domain:deno.com)",
-      "WebFetch(domain:www.omg.org)"
+      "WebFetch(domain:www.omg.org)",
+      "Bash(ls:*)",
+      "Bash(npx vite build:*)"
     ]
   }
 }

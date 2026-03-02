@@ -13,6 +13,7 @@ Open-source requirements management tool built to replace IBM DOORS Classic. Mod
 - **Full-text search** — PostgreSQL tsvector with GIN indexes
 - **Impact analysis** — BFS graph traversal with D3 force-directed visualization
 - **Coverage metrics** — upstream/downstream link coverage per module
+- **ReqIF import/export** — OMG ReqIF 1.2 import/export via API and CLI (.reqif and .reqifz)
 - **HTML publishing** — Minijinja templates with configurable numbering
 - **Saved views** — per-module column/filter/sort configurations
 - **Object types** — schema-enforced typed objects with required attributes
@@ -35,7 +36,7 @@ req1/
 │   │   │   ├── state.rs      # Shared application state
 │   │   │   ├── error.rs      # Error types
 │   │   │   ├── middleware.rs  # Cache-Control middleware for static assets
-│   │   │   └── routes/       # 20 route modules (one per resource)
+│   │   │   └── routes/       # 22 route modules (one per resource)
 │   │   └── tests/
 │   │       └── api_integration.rs
 │   │
@@ -53,7 +54,7 @@ req1/
 │   ├── req1-cli/             # CLI client (talks to server via REST)
 │   │   └── src/main.rs
 │   │
-│   └── req1-reqif/           # ReqIF import/export (stub)
+│   └── req1-reqif/           # ReqIF 1.2 XML library (serialize, deserialize, .reqifz archives)
 │       └── src/lib.rs
 │
 ├── entity/                   # Sea-ORM entities (21 database models)
@@ -341,6 +342,17 @@ Returns a report with issues (severity: error, warning, info), object count, and
 |--------|------|-------------|
 | GET | `/api/v1/modules/{module_id}/publish?format=html` | Publish module to HTML |
 
+### ReqIF Import/Export
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/projects/{project_id}/reqif/import` | Import a `.reqif` or `.reqifz` file (multipart form data) |
+| GET | `/api/v1/modules/{module_id}/reqif/export?format=reqif` | Export module as ReqIF XML (or `?format=reqifz` for ZIP archive) |
+
+Import returns `201 Created` with JSON summary: `module_id`, `objects_created`, `links_created`, `attribute_definitions_created`, `object_types_created`, `link_types_created`.
+
+Export returns binary with `Content-Disposition: attachment` header.
+
 ### Views
 
 | Method | Path | Description |
@@ -500,6 +512,21 @@ req1 resolve-suspect --link-id <uuid>
 
 ```bash
 req1 publish --module-id <uuid> --format html --output module.html
+```
+
+### Import
+
+```bash
+req1 import --project-id <uuid> --file requirements.reqif
+req1 import --project-id <uuid> --file requirements.reqifz
+req1 import --project-id <uuid> --file data.reqif --format reqif
+```
+
+### Export
+
+```bash
+req1 export --module-id <uuid> --output exported.reqif
+req1 export --module-id <uuid> --output exported.reqifz --format reqifz
 ```
 
 ### Output Formats

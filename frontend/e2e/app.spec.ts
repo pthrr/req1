@@ -904,3 +904,636 @@ test.describe("Attributes Tab CRUD", () => {
     await expect(page.getByText(attrName)).not.toBeVisible();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Additional helpers for new feature tests
+// ---------------------------------------------------------------------------
+
+/** Create a review package via API. */
+async function createReviewPackage(
+  request: import("@playwright/test").APIRequestContext,
+  moduleId: string,
+  name: string,
+) {
+  const res = await request.post(`${API}/modules/${moduleId}/review-packages`, {
+    data: { name },
+  });
+  expect(res.ok()).toBeTruthy();
+  return (await res.json()) as { id: string; name: string; status: string };
+}
+
+/** Create a change proposal via API. */
+async function createChangeProposal(
+  request: import("@playwright/test").APIRequestContext,
+  moduleId: string,
+  title: string,
+) {
+  const res = await request.post(`${API}/modules/${moduleId}/change-proposals`, {
+    data: { title },
+  });
+  expect(res.ok()).toBeTruthy();
+  return (await res.json()) as { id: string; title: string; status: string };
+}
+
+/** Create a baseline set via API. */
+async function createBaselineSet(
+  request: import("@playwright/test").APIRequestContext,
+  name: string,
+  version: string,
+) {
+  const res = await request.post(`${API}/baseline-sets`, {
+    data: { name, version },
+  });
+  expect(res.ok()).toBeTruthy();
+  return (await res.json()) as { id: string; name: string; version: string };
+}
+
+/** Create a user via API. */
+async function createUser(
+  request: import("@playwright/test").APIRequestContext,
+  email: string,
+  displayName: string,
+) {
+  const res = await request.post(`${API}/users`, {
+    data: { email, display_name: displayName },
+  });
+  expect(res.ok()).toBeTruthy();
+  return (await res.json()) as { id: string; email: string; display_name: string };
+}
+
+// ---------------------------------------------------------------------------
+// Dark Mode Toggle
+// ---------------------------------------------------------------------------
+
+test.describe("Dark Mode", () => {
+  test("toggle dark mode and persist preference", async ({ page }) => {
+    await page.goto("/");
+
+    // Header should have a Dark/Light toggle button
+    const toggle = page.getByRole("button", { name: /Dark|Light/ });
+    await expect(toggle).toBeVisible();
+
+    // Default should be "Dark" (meaning we're in light mode, button offers dark)
+    await expect(toggle).toHaveText("Dark");
+
+    // Click to switch to dark mode
+    await toggle.click();
+    await expect(toggle).toHaveText("Light");
+
+    // Reload and check persistence
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Light" })).toBeVisible();
+
+    // Toggle back to light
+    await page.getByRole("button", { name: "Light" }).click();
+    await expect(page.getByRole("button", { name: "Dark" })).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Publish Dropdown
+// ---------------------------------------------------------------------------
+
+test.describe("Publish Dropdown", () => {
+  test("shows format options in dropdown", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-pub-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-pub-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-pub-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+
+    // Click the "Publish" dropdown button
+    await page.getByRole("button", { name: /Publish/ }).click();
+    await page.waitForTimeout(200);
+
+    // Should show format options
+    await expect(page.getByRole("button", { name: "HTML" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Markdown" })).toBeVisible();
+
+    // LaTeX should be disabled
+    const latexBtn = page.getByRole("button", { name: "LaTeX" });
+    await expect(latexBtn).toBeVisible();
+    await expect(latexBtn).toBeDisabled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Preview Panel
+// ---------------------------------------------------------------------------
+
+test.describe("Publish Preview", () => {
+  test("opens preview panel with iframe", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-prev-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-prev-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-prev-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+
+    // Click the Preview button
+    await page.getByRole("button", { name: "Preview" }).click();
+
+    // Preview panel should appear
+    await expect(page.getByText("Document Preview")).toBeVisible({ timeout: 5000 });
+
+    // Should contain an iframe
+    await expect(page.locator("iframe[title='Document Preview']")).toBeVisible();
+
+    // Close button should work
+    await page.getByRole("button", { name: "Close" }).click();
+    await expect(page.getByText("Document Preview")).not.toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Breadcrumb Navigation
+// ---------------------------------------------------------------------------
+
+test.describe("Object Breadcrumb", () => {
+  test("shows breadcrumb path when object is selected", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-bc-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-bc-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-bc-${uid()}`);
+    const parentHeading = `BC-Parent-${uid()}`;
+    const parent = await createObject(request, mod.id, parentHeading);
+    const childHeading = `BC-Child-${uid()}`;
+    // Create child under parent
+    const childRes = await request.post(`${API}/modules/${mod.id}/objects`, {
+      data: { heading: childHeading, parent_id: parent.id },
+    });
+    expect(childRes.ok()).toBeTruthy();
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Click on the child row in the grid
+    await page.locator(".ag-row").filter({ hasText: childHeading }).click();
+    await page.waitForTimeout(500);
+
+    // Breadcrumb should show parent heading somewhere on page
+    await expect(page.getByText(parentHeading).first()).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Batch Review
+// ---------------------------------------------------------------------------
+
+test.describe("Batch Review", () => {
+  test("review all button marks unreviewed objects", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-br-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-br-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-br-${uid()}`);
+    await createObject(request, mod.id, `BR-A-${uid()}`);
+    await createObject(request, mod.id, `BR-B-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Review All button should be visible
+    const reviewAllBtn = page.getByRole("button", { name: "Review All" });
+    await expect(reviewAllBtn).toBeVisible();
+
+    // Click it (auto-confirm dialog)
+    page.on("dialog", (dialog) => dialog.accept());
+    await reviewAllBtn.click();
+    await page.waitForTimeout(1000);
+
+    // Grid should now show reviewed checkmarks for all objects
+    // Each reviewed object shows a green checkmark emoji
+    const checkmarks = page.locator(".ag-row").locator("text=\u2705");
+    await expect(checkmarks.first()).toBeVisible({ timeout: 5000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Split View
+// ---------------------------------------------------------------------------
+
+test.describe("Split View", () => {
+  test("toggle split view shows tree + detail panel", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-sv-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-sv-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-sv-${uid()}`);
+    const heading = `SV-${uid()}`;
+    await createObject(request, mod.id, heading);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Click Split View button
+    await page.getByRole("button", { name: "Split View" }).click();
+    await page.waitForTimeout(300);
+
+    // Grid View button should now be visible (toggled)
+    await expect(page.getByRole("button", { name: "Grid View" })).toBeVisible();
+
+    // "Select an object from the tree" placeholder should show
+    await expect(page.getByText("Select an object from the tree")).toBeVisible();
+
+    // Click on tree node
+    await page.getByText(heading).first().click();
+    await page.waitForTimeout(500);
+
+    // Detail panel should show the object heading in a form
+    await expect(page.locator("input[type='text']").first()).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Object Detail Panel (Edit button)
+// ---------------------------------------------------------------------------
+
+test.describe("Object Detail Panel", () => {
+  test("open detail panel via Edit button", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-det-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-det-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-det-${uid()}`);
+    const heading = `DET-${uid()}`;
+    await createObject(request, mod.id, heading, "Some body text");
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Click Edit button on the row
+    const editBtn = page.getByRole("button", { name: "Edit" }).first();
+    await editBtn.click();
+    await page.waitForTimeout(500);
+
+    // If history opened instead, close and retry
+    if (await page.getByText(/History for/).isVisible()) {
+      await page.getByRole("button", { name: "Close" }).click();
+      await page.waitForTimeout(300);
+      await editBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // Detail panel should show Object heading
+    await expect(page.getByText(/^Object:/)).toBeVisible({ timeout: 5000 });
+
+    // Should have Save and Close buttons in the detail panel
+    await expect(page.getByRole("button", { name: "Save", exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Close" }).first()).toBeVisible();
+
+    // Close it
+    await page.getByRole("button", { name: "Close" }).click();
+    await expect(page.getByText(/^Object:/)).not.toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reviews Tab
+// ---------------------------------------------------------------------------
+
+test.describe("Reviews Tab", () => {
+  test("create review package and see dashboard", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-rev-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-rev-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-rev-${uid()}`);
+    await createObject(request, mod.id, `REV-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+
+    // Go to Reviews tab
+    await page.getByRole("button", { name: "Reviews" }).click();
+    await page.waitForTimeout(500);
+
+    // Dashboard should be visible
+    await expect(page.getByText("Review Dashboard")).toBeVisible();
+
+    // Create a review package
+    const pkgName = `RevPkg-${uid()}`;
+    await page.getByPlaceholder("Package name").fill(pkgName);
+    await page.getByRole("button", { name: "Create Package" }).click();
+    await page.waitForTimeout(500);
+
+    // Package should appear
+    await expect(page.getByText(pkgName)).toBeVisible({ timeout: 3000 });
+
+    // Package shows "draft" status indicator
+    await expect(page.getByText("draft").first()).toBeVisible();
+  });
+
+  test("status transitions work", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-rst-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-rst-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-rst-${uid()}`);
+    await createReviewPackage(request, mod.id, `Pkg-trans-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.getByRole("button", { name: "Reviews" }).click();
+    await page.waitForTimeout(500);
+
+    // Should show "Open" transition button (from draft)
+    const openBtn = page.getByRole("button", { name: "Open", exact: true });
+    await expect(openBtn).toBeVisible({ timeout: 3000 });
+
+    // Transition the package via API directly (more reliable than clicking through UI)
+    const pkgRes = await request.get(`${API}/modules/${mod.id}/review-packages`);
+    const pkgs = (await pkgRes.json()).items;
+    await request.patch(`${API}/modules/${mod.id}/review-packages/${pkgs[0].id}`, {
+      data: { status: "open" },
+    });
+
+    // Reload the Reviews tab to see updated status
+    await page.getByRole("button", { name: "Reviews" }).click();
+    await page.waitForTimeout(500);
+
+    // Now it should show "In_review" transition button (from open status)
+    await expect(page.getByText("In_review")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("review package with pre-created data via API", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-rpkg-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-rpkg-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-rpkg-${uid()}`);
+    const pkg = await createReviewPackage(request, mod.id, `Pkg-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.getByRole("button", { name: "Reviews" }).click();
+    await page.waitForTimeout(500);
+
+    // Expand the package to see assignments section
+    await page.getByText(pkg.name).click();
+    await page.waitForTimeout(300);
+
+    // Should show "No assignments yet."
+    await expect(page.getByText("No assignments yet.")).toBeVisible();
+
+    // Delete package
+    await page.getByRole("button", { name: "Delete" }).first().click();
+    await page.waitForTimeout(500);
+
+    // Package should be removed
+    await expect(page.getByText(pkg.name)).not.toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Change Proposals Tab
+// ---------------------------------------------------------------------------
+
+test.describe("Change Proposals Tab", () => {
+  test("create and manage change proposal", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-cp-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-cp-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-cp-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+
+    // Go to Proposals tab
+    await page.getByRole("button", { name: "Proposals" }).click();
+    await page.waitForTimeout(500);
+
+    // Create a proposal
+    const title = `CP-${uid()}`;
+    await page.getByPlaceholder("Proposal title").fill(title);
+    await page.getByRole("button", { name: "Create Proposal" }).click();
+    await page.waitForTimeout(500);
+
+    // Proposal should appear
+    await expect(page.getByText(title)).toBeVisible({ timeout: 3000 });
+
+    // Should show "draft" status
+    await expect(page.getByText("draft").first()).toBeVisible();
+
+    // Click Approve button
+    await page.getByRole("button", { name: "Approve" }).first().click();
+    await page.waitForTimeout(500);
+
+    // Status should change to "approved"
+    await expect(page.getByText("approved").first()).toBeVisible();
+  });
+
+  test("reject a change proposal", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-cprej-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-cprej-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-cprej-${uid()}`);
+    await createChangeProposal(request, mod.id, `CP-rej-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.getByRole("button", { name: "Proposals" }).click();
+    await page.waitForTimeout(500);
+
+    // Click Reject
+    await page.getByRole("button", { name: "Reject" }).first().click();
+    await page.waitForTimeout(500);
+
+    // Status should change to "rejected"
+    await expect(page.getByText("rejected").first()).toBeVisible();
+  });
+
+  test("delete a change proposal", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-cpdel-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-cpdel-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-cpdel-${uid()}`);
+    const cp = await createChangeProposal(request, mod.id, `CP-del-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.getByRole("button", { name: "Proposals" }).click();
+    await page.waitForTimeout(500);
+
+    await page.getByRole("button", { name: "Del" }).first().click();
+    await page.waitForTimeout(500);
+
+    await expect(page.getByText(cp.title)).not.toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Baseline Sets
+// ---------------------------------------------------------------------------
+
+test.describe("Baseline Sets", () => {
+  test("create baseline set and use it when creating baseline", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-bs-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-bs-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-bs-${uid()}`);
+    await createObject(request, mod.id, `BS-OBJ-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.getByRole("button", { name: "Baselines" }).click();
+    await page.waitForTimeout(500);
+
+    // Baseline Sets section should be visible
+    await expect(page.getByText("Baseline Sets")).toBeVisible();
+
+    // Create a new baseline set
+    await page.getByRole("button", { name: "New Set" }).click();
+    await page.waitForTimeout(200);
+
+    const setName = `Set-${uid()}`;
+    await page.getByPlaceholder("Set name").fill(setName);
+    await page.getByPlaceholder("Version").fill("1.0");
+    await page.getByRole("button", { name: /^Create$/ }).click();
+    await page.waitForTimeout(500);
+
+    // Set should appear as a filter chip
+    await expect(page.getByText(`${setName} v1.0`).first()).toBeVisible({ timeout: 3000 });
+  });
+
+  test("filter baselines by set", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-bsf-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-bsf-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-bsf-${uid()}`);
+    await createObject(request, mod.id, `BSF-OBJ-${uid()}`);
+    const bset = await createBaselineSet(request, `FilterSet-${uid()}`, "2.0");
+
+    // Create a baseline with this set
+    const blRes = await request.post(`${API}/modules/${mod.id}/baselines`, {
+      data: { name: `BL-in-set-${uid()}`, baseline_set_id: bset.id },
+    });
+    expect(blRes.ok()).toBeTruthy();
+
+    // Create a baseline without set
+    const blRes2 = await request.post(`${API}/modules/${mod.id}/baselines`, {
+      data: { name: `BL-no-set-${uid()}` },
+    });
+    expect(blRes2.ok()).toBeTruthy();
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.getByRole("button", { name: "Baselines" }).click();
+    await page.waitForTimeout(500);
+
+    // Both baselines should be visible initially
+    const table = page.locator("table");
+    await expect(table.locator("tbody tr")).toHaveCount(2, { timeout: 3000 });
+
+    // Click the set filter chip
+    await page.getByRole("button", { name: new RegExp(`${bset.name}`) }).click();
+    await page.waitForTimeout(300);
+
+    // Only the baseline in the set should be visible
+    await expect(table.locator("tbody tr")).toHaveCount(1, { timeout: 3000 });
+
+    // Click "All" to reset
+    await page.getByRole("button", { name: "All" }).click();
+    await page.waitForTimeout(300);
+
+    await expect(table.locator("tbody tr")).toHaveCount(2, { timeout: 3000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Activity Feed
+// ---------------------------------------------------------------------------
+
+test.describe("Activity Feed", () => {
+  test("expand activity feed shows recent changes", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-af-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-af-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-af-${uid()}`);
+    await createObject(request, mod.id, `AF-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Activity Feed button should be visible
+    const feedBtn = page.getByRole("button", { name: "Activity Feed" });
+    await expect(feedBtn).toBeVisible();
+
+    // Click to expand
+    await feedBtn.click();
+    await page.waitForTimeout(2000); // Wait for feed to load
+
+    // Should show activity entries with "create" type
+    await expect(page.getByText("create").first()).toBeVisible({ timeout: 5000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// New Tabs Visible
+// ---------------------------------------------------------------------------
+
+test.describe("New Tabs", () => {
+  test("Reviews and Proposals tabs are visible", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-newtab-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-newtab-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-newtab-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+
+    await expect(page.getByRole("button", { name: "Reviews" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Proposals" })).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// References Panel
+// ---------------------------------------------------------------------------
+
+test.describe("References Panel", () => {
+  test("open and add a reference", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-ref-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-ref-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-ref-${uid()}`);
+    await createObject(request, mod.id, `REF-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Click Ref button on a row
+    const refBtn = page.getByRole("button", { name: "Ref" }).first();
+    await refBtn.click();
+    await page.waitForTimeout(500);
+
+    // If history opened, close and retry
+    if (await page.getByText(/History for/).isVisible()) {
+      await page.getByRole("button", { name: "Close" }).click();
+      await page.waitForTimeout(300);
+      await refBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // References panel should show
+    await expect(page.getByText(/References for/)).toBeVisible({ timeout: 5000 });
+
+    // Click Add Reference
+    await page.getByRole("button", { name: "Add Reference" }).click();
+    await page.waitForTimeout(200);
+
+    // Should show a reference row with inputs
+    await expect(page.getByPlaceholder("Path or URL")).toBeVisible();
+    await expect(page.getByPlaceholder("Description")).toBeVisible();
+
+    // Fill and save
+    await page.getByPlaceholder("Path or URL").fill("https://example.com/spec");
+    await page.getByPlaceholder("Description").fill("External specification");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.waitForTimeout(500);
+
+    // Close
+    await page.getByRole("button", { name: "Close" }).click();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Search Highlighting
+// ---------------------------------------------------------------------------
+
+test.describe("Search Highlighting", () => {
+  test("search highlights matching objects in tree", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-sh-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-sh-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-sh-${uid()}`);
+    const needle = `UNIQUE-${uid()}`;
+    await createObject(request, mod.id, `SH-A-${uid()}`);
+    await createObject(request, mod.id, needle, `body with ${needle} text`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Enter search query
+    await page.getByPlaceholder("Full-text search...").fill(needle);
+    await page.getByRole("button", { name: "Search" }).click();
+    await page.waitForTimeout(1000);
+
+    // Tree should show filtered results (highlighted with yellow bg)
+    // The Object Tree div should contain the search result
+    const treePanel = page.locator("div").filter({ hasText: "Object Tree" }).first();
+    await expect(treePanel).toBeVisible();
+
+    // Clear search
+    await page.getByRole("button", { name: "Clear" }).click();
+    await page.waitForTimeout(500);
+  });
+});

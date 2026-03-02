@@ -5,6 +5,7 @@ pub mod error;
 pub mod fingerprint;
 pub mod history;
 pub mod level;
+pub mod reqif;
 pub mod scripting;
 pub mod service;
 pub mod suspect;

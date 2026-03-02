@@ -446,7 +446,7 @@ export const api = {
 
   createObject: (
     moduleId: string,
-    data: { heading?: string; body?: string; position?: number; object_type_id?: string; classification?: string },
+    data: { heading?: string; body?: string; position?: number; parent_id?: string; object_type_id?: string; classification?: string },
   ) =>
     request<ReqObject>(`/modules/${moduleId}/objects`, {
       method: "POST",
@@ -463,8 +463,12 @@ export const api = {
       heading?: string;
       body?: string;
       position?: number;
+      parent_id?: string | null;
       attributes?: Record<string, unknown>;
       reviewed?: boolean;
+      classification?: string;
+      references?: unknown;
+      object_type_id?: string | null;
     },
   ) =>
     request<ReqObject>(`/modules/${moduleId}/objects/${id}`, {
@@ -474,6 +478,21 @@ export const api = {
 
   deleteObject: (moduleId: string, id: string) =>
     request<void>(`/modules/${moduleId}/objects/${id}`, { method: "DELETE" }),
+
+  moveObject: (
+    moduleId: string,
+    objectId: string,
+    action:
+      | { action: "up" }
+      | { action: "down" }
+      | { action: "indent" }
+      | { action: "dedent" }
+      | { action: "move_to"; parent_id: string | null; position: number },
+  ) =>
+    request<ReqObject>(`/modules/${moduleId}/objects/${objectId}/move`, {
+      method: "POST",
+      body: JSON.stringify(action),
+    }),
 
   // --- Object History ---
   listObjectHistory: (moduleId: string, objectId: string) =>

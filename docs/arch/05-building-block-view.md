@@ -64,14 +64,14 @@ The backend is organized as a Cargo workspace with 6 members:
 req1/
 ├── crates/
 │   ├── req1-server/     Axum web server — routes, config, state, error handling
-│   ├── req1-core/       Business logic — services, validation, scripting, fingerprinting
+│   ├── req1-core/       Business logic — services, validation, scripting, fingerprinting, ReqIF entity mapping
 │   ├── req1-cli/        CLI client — clap-based, talks to server REST API
-│   └── req1-reqif/      ReqIF crate (stub, planned)
+│   └── req1-reqif/      ReqIF 1.2 XML library — model structs, serialize/deserialize, .reqifz archive support
 ├── entity/              Sea-ORM entities — 21 database models
 └── migration/           Sea-ORM migrations — 23 sequential migrations
 ```
 
-### req1-server Route Modules (22 files)
+### req1-server Route Modules (23 files)
 
 | Route module | Endpoints |
 |-------------|-----------|
@@ -90,6 +90,7 @@ req1/
 | `scripts.rs` | Script CRUD, test, execute, batch layout |
 | `validation.rs` | Module validation (built-in + JavaScript rules) |
 | `publish.rs` | HTML publishing (minijinja templates) |
+| `reqif.rs` | ReqIF import (multipart upload) and export (XML/ZIP download) |
 | `views.rs` | Saved view CRUD |
 | `comments.rs` | Comment CRUD + resolve/unresolve |
 | `app_users.rs` | User account CRUD |
@@ -117,6 +118,9 @@ req1/
 | `service/baseline_set.rs` | Baseline set management |
 | `service/workspace.rs` | Workspace CRUD |
 | `service/project.rs` | Project CRUD |
+| `reqif/import.rs` | ReqIF → DB entity mapping (modules, objects, types, links) |
+| `reqif/export.rs` | DB entity → ReqIF document mapping |
+| `reqif/type_map.rs` | Bidirectional ReqIF datatype ↔ entity attribute type conversion |
 | `scripting/engine.rs` | JavaScript (V8) runtime — sandboxed, triggers/layout/actions |
 
 ## 5.3 Level 2 — Axum API Components (Target Architecture)
@@ -133,7 +137,7 @@ C4Component
         Component(crud, "CRUD Module", "sea-orm, sqlx", "Object/module/attribute CRUD with history tracking [impl]")
         Component(baseline, "Baseline Module", "sqlx", "Baseline creation, locking, and structured diff queries [impl]")
         Component(trace, "Traceability Module", "sqlx", "Link CRUD, suspect detection, coverage analysis, graph traversal [impl]")
-        Component(reqif, "ReqIF Module", "quick-xml, serde", "ReqIF 1.2 import/export with attribute mapping [planned]")
+        Component(reqif, "ReqIF Module", "quick-xml, serde", "ReqIF 1.2 import/export with bidirectional entity mapping, multipart upload, binary download [impl]")
         Component(export, "Export Module", "minijinja, pulldown-cmark", "HTML publishing from templates [impl]; PDF/DOCX [planned]")
         Component(search, "Search Module", "sqlx (PG FTS)", "Full-text search with tsvector/tsquery and GIN indexes [impl]")
         Component(audit, "Audit Module", "sea-orm", "Writes every mutation to history tables with attribute-level granularity [impl]")

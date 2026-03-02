@@ -288,10 +288,10 @@
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| FR-800 | The system SHALL support importing requirements from OMG ReqIF 1.2 files. | SHALL | Planned |
-| FR-801 | ReqIF import SHALL map SPEC-TYPES to attribute definitions, SPEC-OBJECTS to objects, and SPEC-RELATIONS to links. | SHALL | Planned |
-| FR-802 | The system SHALL support exporting modules to OMG ReqIF 1.2 format. | SHALL | Planned |
-| FR-803 | ReqIF round-trip SHALL preserve all standard attribute types (string, integer, real, date, enum, XHTML). | SHALL | Planned |
+| FR-800 | The system SHALL support importing requirements from OMG ReqIF 1.2 files. | SHALL | Implemented |
+| FR-801 | ReqIF import SHALL map SPEC-TYPES to attribute definitions, SPEC-OBJECTS to objects, and SPEC-RELATIONS to links. | SHALL | Implemented |
+| FR-802 | The system SHALL support exporting modules to OMG ReqIF 1.2 format. | SHALL | Implemented |
+| FR-803 | ReqIF round-trip SHALL preserve all standard attribute types (string, integer, real, date, enum, XHTML). | SHALL | Implemented |
 
 ### CSV
 
@@ -431,7 +431,7 @@
 |----|-------------|----------|--------|
 | FR-1110 | The system SHALL provide a CLI client (`req1-cli`) for headless automation. | SHALL | Implemented |
 | FR-1111 | The CLI SHALL support: list, create, update, delete operations on core entities. | SHALL | Implemented |
-| FR-1112 | The CLI SHALL support validate, review, publish, and resolve-suspect commands. | SHALL | Implemented |
+| FR-1112 | The CLI SHALL support validate, review, publish, import, export, and resolve-suspect commands. | SHALL | Implemented |
 | FR-1113 | The CLI SHALL support output formats: table (default), tree, and JSON. | SHALL | Implemented |
 | FR-1114 | The CLI `validate` command SHALL exit with code 1 on errors, enabling CI pipeline integration. | SHALL | Implemented |
 
@@ -520,7 +520,7 @@
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
 | FR-1240 | The system SHALL store all data in PostgreSQL using standard data types and a documented schema, enabling direct SQL access and migration to other tools. | SHALL | Implemented |
-| FR-1241 | The system SHALL support importing requirements from at least one industry-standard format (ReqIF 1.2) to enable migration from legacy tools. | SHALL | Planned |
+| FR-1241 | The system SHALL support importing requirements from at least one industry-standard format (ReqIF 1.2) to enable migration from legacy tools. | SHALL | Implemented |
 | FR-1242 | The system SHALL expose all functionality via a documented REST API, enabling third-party integration without proprietary scripting languages or tooling. | SHALL | Implemented |
 
 *Rationale: DOORS Classic's proprietary data structures and DXL scripting create severe vendor lock-in. Migration from DOORS Classic to DOORS NG is so painful that IBM treats it as a new deployment. Open data storage and standard APIs eliminate this class of problem entirely.*
@@ -531,7 +531,7 @@
 
 | Status | Count |
 |--------|-------|
-| Implemented | 118 |
+| Implemented | 123 |
 | Partial | 5 |
-| Planned | 73 |
+| Planned | 68 |
 | **Total** | **196** |

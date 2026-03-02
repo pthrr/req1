@@ -10,7 +10,7 @@ members = [
 ]
 
 [workspace.dependencies]
-axum = "0.8"
+axum = { version = "0.8", features = ["multipart"] }
 tokio = { version = "1", features = ["full"] }
 sea-orm = { version = "1", features = ["sqlx-postgres", "runtime-tokio-rustls"] }
 sea-orm-migration = { version = "1", features = ["sqlx-postgres", "runtime-tokio-rustls"] }
