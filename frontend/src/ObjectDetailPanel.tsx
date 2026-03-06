@@ -3,10 +3,12 @@ import {
   api,
   isReviewed,
   type AttributeDefinition,
+  type FormLayout,
   type ObjectType,
   type ReqObject,
 } from "./api/client";
-import Markdown from "react-markdown";
+import { RichTextEditor } from "./RichTextEditor";
+import { prepareBodyForEditor } from "./utils/bodyFormat";
 import { theme } from "./theme";
 
 interface Props {
@@ -36,7 +38,7 @@ export function ObjectDetailPanel({
   const [attributes, setAttributes] = useState<Record<string, unknown>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [previewMode, setPreviewMode] = useState<"edit" | "preview" | "split">("split");
+  const [editorBody, setEditorBody] = useState("");
 
   const fetchObject = useCallback(async () => {
     try {
@@ -47,6 +49,7 @@ export function ObjectDetailPanel({
       setClassification(data.classification);
       setObjectTypeId(data.object_type_id ?? "");
       setAttributes((data.attributes as Record<string, unknown>) ?? {});
+      setEditorBody(prepareBodyForEditor(data.body));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load object");
@@ -124,57 +127,13 @@ export function ObjectDetailPanel({
 
             <label style={{ display: "block", fontWeight: 600, fontSize: "0.85rem", marginBottom: "4px" }}>
               Body
-              <span style={{ display: "inline-flex", gap: 2, marginLeft: theme.spacing.sm, fontWeight: 400 }}>
-                {(["edit", "split", "preview"] as const).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setPreviewMode(m)}
-                    style={{
-                      padding: "1px 6px",
-                      fontSize: "0.75rem",
-                      background: previewMode === m ? theme.colors.primary : "transparent",
-                      color: previewMode === m ? "#fff" : theme.colors.text,
-                      border: `1px solid ${theme.colors.border}`,
-                      borderRadius: 3,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {m.charAt(0).toUpperCase() + m.slice(1)}
-                  </button>
-                ))}
-              </span>
             </label>
-            <div style={{ display: "flex", gap: theme.spacing.sm, marginBottom: theme.spacing.sm }}>
-              {(previewMode === "edit" || previewMode === "split") && (
-                <textarea
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  rows={10}
-                  style={{
-                    flex: 1,
-                    padding: theme.spacing.sm,
-                    resize: "vertical",
-                    fontFamily: "monospace",
-                    fontSize: "0.85rem",
-                    boxSizing: "border-box",
-                  }}
-                />
-              )}
-              {(previewMode === "preview" || previewMode === "split") && (
-                <div
-                  style={{
-                    flex: 1,
-                    padding: theme.spacing.sm,
-                    border: `1px solid ${theme.colors.borderLight}`,
-                    borderRadius: theme.borderRadius,
-                    overflow: "auto",
-                    minHeight: 200,
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  <Markdown>{body}</Markdown>
-                </div>
-              )}
+            <div style={{ marginBottom: theme.spacing.sm }}>
+              <RichTextEditor
+                content={editorBody}
+                onChange={(html) => { setEditorBody(html); setBody(html); }}
+                objectId={objectId}
+              />
             </div>
 
             <label style={{ display: "block", fontWeight: 600, fontSize: "0.85rem", marginBottom: "4px" }}>
@@ -211,39 +170,95 @@ export function ObjectDetailPanel({
 
           {/* Right column: Attributes, Meta */}
           <div>
-            {attrDefs.length > 0 && (
-              <>
-                <label style={{ display: "block", fontWeight: 600, fontSize: "0.85rem", marginBottom: "4px" }}>
-                  Attributes
-                </label>
-                {attrDefs.map((def) => (
-                  <div key={def.id} style={{ marginBottom: theme.spacing.sm }}>
-                    <label style={{ fontSize: "0.8rem", color: theme.colors.textSecondary }}>
-                      {def.name}
+            {(() => {
+              // Determine if the object's type has a form layout
+              const objType = objectTypes.find((t) => t.id === objectTypeId);
+              const schema = objType?.attribute_schema as FormLayout | Record<string, never> | undefined;
+              const hasSections = schema && "sections" in schema && Array.isArray(schema.sections) && schema.sections.length > 0;
+
+              if (hasSections && schema && "sections" in schema) {
+                // Section-based layout
+                return schema.sections.map((section) => (
+                  <div key={section.id} style={{ marginBottom: theme.spacing.md }}>
+                    <label style={{ display: "block", fontWeight: 600, fontSize: "0.85rem", marginBottom: "4px", borderBottom: `1px solid ${theme.colors.borderLight}`, paddingBottom: 4 }}>
+                      {section.title}
                     </label>
-                    {def.data_type === "enum" && Array.isArray(def.enum_values) ? (
-                      <select
-                        value={String(attributes[def.name] ?? "")}
-                        onChange={(e) => handleAttrChange(def.name, e.target.value)}
-                        style={{ display: "block", padding: "4px", width: "100%" }}
-                      >
-                        <option value="">(none)</option>
-                        {def.enum_values.map((v) => (
-                          <option key={v} value={v}>{v}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        value={String(attributes[def.name] ?? "")}
-                        onChange={(e) => handleAttrChange(def.name, e.target.value)}
-                        style={{ display: "block", padding: "4px", width: "100%", boxSizing: "border-box" }}
-                      />
-                    )}
+                    <div style={{ display: "grid", gridTemplateColumns: `repeat(${section.columns}, 1fr)`, gap: theme.spacing.sm }}>
+                      {section.fields.map((field) => {
+                        const def = attrDefs.find((d) => d.name === field.attribute_name);
+                        if (!def) return null;
+                        const gridColumn = field.width === "full" ? `1 / -1` : undefined;
+                        return (
+                          <div key={field.attribute_name} style={{ gridColumn }}>
+                            <label style={{ fontSize: "0.8rem", color: theme.colors.textSecondary }}>
+                              {def.name}{field.required ? " *" : ""}
+                            </label>
+                            {def.data_type === "enum" && Array.isArray(def.enum_values) ? (
+                              <select
+                                value={String(attributes[def.name] ?? "")}
+                                onChange={(e) => handleAttrChange(def.name, e.target.value)}
+                                style={{ display: "block", padding: "4px", width: "100%" }}
+                              >
+                                <option value="">(none)</option>
+                                {def.enum_values.map((v) => (
+                                  <option key={v} value={v}>{v}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                value={String(attributes[def.name] ?? "")}
+                                onChange={(e) => handleAttrChange(def.name, e.target.value)}
+                                style={{ display: "block", padding: "4px", width: "100%", boxSizing: "border-box" }}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                ))}
-              </>
-            )}
+                ));
+              }
+
+              // Fallback: flat list
+              if (attrDefs.length > 0) {
+                return (
+                  <>
+                    <label style={{ display: "block", fontWeight: 600, fontSize: "0.85rem", marginBottom: "4px" }}>
+                      Attributes
+                    </label>
+                    {attrDefs.map((def) => (
+                      <div key={def.id} style={{ marginBottom: theme.spacing.sm }}>
+                        <label style={{ fontSize: "0.8rem", color: theme.colors.textSecondary }}>
+                          {def.name}
+                        </label>
+                        {def.data_type === "enum" && Array.isArray(def.enum_values) ? (
+                          <select
+                            value={String(attributes[def.name] ?? "")}
+                            onChange={(e) => handleAttrChange(def.name, e.target.value)}
+                            style={{ display: "block", padding: "4px", width: "100%" }}
+                          >
+                            <option value="">(none)</option>
+                            {def.enum_values.map((v) => (
+                              <option key={v} value={v}>{v}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={String(attributes[def.name] ?? "")}
+                            onChange={(e) => handleAttrChange(def.name, e.target.value)}
+                            style={{ display: "block", padding: "4px", width: "100%", boxSizing: "border-box" }}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </>
+                );
+              }
+
+              return null;
+            })()}
 
             <div style={{ marginTop: theme.spacing.md, fontSize: "0.8rem", color: theme.colors.textMuted }}>
               <div>Version: {obj.current_version}</div>

@@ -12,13 +12,14 @@ import {
   api,
   isReviewed,
   type AttributeDefinition,
+  type LifecycleModel,
   type Link,
   type Module,
   type ObjectType,
   type ReqObject,
 } from "./api/client";
 import Markdown from "react-markdown";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { ObjectHistory } from "./ObjectHistory";
 import { LinkPanel } from "./LinkPanel";
 import { BaselinePanel } from "./BaselinePanel";
@@ -38,7 +39,15 @@ import { ReviewPanel } from "./ReviewPanel";
 import { ChangeProposalPanel } from "./ChangeProposalPanel";
 import { ReferencesPanel } from "./ReferencesPanel";
 import { ReviewDiffPanel } from "./ReviewDiffPanel";
+import { AttachmentPanel } from "./AttachmentPanel";
 import { ActivityFeed } from "./ActivityFeed";
+import { TemplateEditorPanel } from "./TemplateEditorPanel";
+import { LifecyclePanel } from "./LifecyclePanel";
+import { TestDashboard } from "./TestDashboard";
+import { DiagramPanel } from "./DiagramPanel";
+import { LiveDocPanel } from "./LiveDocPanel";
+import { DocxImportWizard } from "./DocxImportWizard";
+import { isHtmlContent } from "./utils/bodyFormat";
 import { theme } from "./theme";
 
 interface Props {
@@ -46,10 +55,11 @@ interface Props {
   onModuleUpdated: (m: Module) => void;
 }
 
-type Tab = "objects" | "links" | "baselines" | "attributes" | "scripts" | "validation" | "types" | "settings" | "reviews" | "proposals";
+type Tab = "objects" | "document" | "links" | "baselines" | "attributes" | "scripts" | "validation" | "types" | "settings" | "reviews" | "proposals" | "lifecycle" | "tests" | "diagrams";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "objects", label: "Objects" },
+  { key: "document", label: "Document" },
   { key: "links", label: "Links" },
   { key: "baselines", label: "Baselines" },
   { key: "attributes", label: "Attributes" },
@@ -58,14 +68,22 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "types", label: "Types" },
   { key: "reviews", label: "Reviews" },
   { key: "proposals", label: "Proposals" },
+  { key: "lifecycle", label: "Lifecycle" },
+  { key: "tests", label: "Tests" },
+  { key: "diagrams", label: "Diagrams" },
   { key: "settings", label: "Settings" },
 ];
 
 const PUBLISH_FORMATS = [
   { value: "html", label: "HTML", enabled: true },
   { value: "markdown", label: "Markdown", enabled: true },
-  { value: "latex", label: "LaTeX", enabled: false },
-  { value: "plaintext", label: "Plain Text", enabled: false },
+  { value: "latex", label: "LaTeX", enabled: true },
+  { value: "txt", label: "Plain Text", enabled: true },
+  { value: "csv", label: "CSV", enabled: true },
+  { value: "yaml", label: "YAML", enabled: true },
+  { value: "pdf", label: "PDF", enabled: true },
+  { value: "xlsx", label: "Excel (XLSX)", enabled: true },
+  { value: "docx", label: "Word (DOCX)", enabled: true },
 ];
 
 type PanelState =
@@ -75,14 +93,18 @@ type PanelState =
   | { type: "detail"; objectId: string }
   | { type: "references"; objectId: string }
   | { type: "reviewDiff"; objectId: string }
+  | { type: "attachments"; objectId: string }
   | { type: "preview" }
+  | { type: "template" }
   | null;
 
 export function ModuleDetail({ module, onModuleUpdated }: Props) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [objects, setObjects] = useState<ReqObject[]>([]);
   const [attrDefs, setAttrDefs] = useState<AttributeDefinition[]>([]);
   const [objectTypes, setObjectTypes] = useState<ObjectType[]>([]);
+  const [lifecycleModels, setLifecycleModels] = useState<LifecycleModel[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [heading, setHeading] = useState("");
   const [body, setBody] = useState("");
@@ -99,7 +121,12 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
   const [gridReady, setGridReady] = useState(false);
   const [layoutColumns, setLayoutColumns] = useState<Map<string, Map<string, string>>>(new Map());
   const [publishMenuOpen, setPublishMenuOpen] = useState(false);
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [xlsxImporting, setXlsxImporting] = useState(false);
+  const [docxWizardOpen, setDocxWizardOpen] = useState(false);
   const [splitView, setSplitView] = useState(false);
+  const csvFileRef = useRef<HTMLInputElement>(null);
+  const xlsxFileRef = useRef<HTMLInputElement>(null);
   const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
   const [objectLinks, setObjectLinks] = useState<Link[]>([]);
   const gridRef = useRef<AgGridReact<ReqObject>>(null);
@@ -147,11 +174,21 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
     }
   }, [module.id]);
 
+  const fetchLifecycleModels = useCallback(async () => {
+    try {
+      const data = await api.listLifecycleModels(module.id);
+      setLifecycleModels(data);
+    } catch {
+      // Non-critical
+    }
+  }, [module.id]);
+
   useEffect(() => {
     fetchObjects();
     fetchAttrDefs();
     fetchObjectTypes();
-  }, [fetchObjects, fetchAttrDefs, fetchObjectTypes]);
+    fetchLifecycleModels();
+  }, [fetchObjects, fetchAttrDefs, fetchObjectTypes, fetchLifecycleModels]);
 
   // Fetch layout columns from enabled layout scripts
   useEffect(() => {
@@ -489,6 +526,25 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
     return () => { cancelled = true; };
   }, [selectedObjectId]);
 
+  // Anchor-based URL navigation: scroll to object from URL hash
+  useEffect(() => {
+    const hash = location.hash;
+    if (!hash || !hash.startsWith("#obj-")) return;
+    const targetId = hash.slice(5);
+    if (!targetId || objects.length === 0) return;
+    if (!objects.find((o) => o.id === targetId)) return;
+    setSelectedObjectId(targetId);
+    setActivePanel({ type: "history", objectId: targetId });
+    const gridApi = gridRef.current?.api;
+    if (gridApi) {
+      const rowNode = gridApi.getRowNode(targetId);
+      if (rowNode) {
+        gridApi.ensureNodeVisible(rowNode);
+        gridApi.setNodesSelected({ nodes: [rowNode], newValue: true });
+      }
+    }
+  }, [location.hash, objects]);
+
   // Navigate to a linked object
   const handleNavigateToObject = useCallback((objectId: string, targetModuleId?: string) => {
     if (selectedObjectId) {
@@ -550,7 +606,21 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
       // Use dropdown editor for enum and bool types
       if (def.data_type === "enum" && Array.isArray(def.enum_values)) {
         col.cellEditor = "agSelectCellEditor";
-        col.cellEditorParams = { values: def.enum_values };
+        if (def.depends_on && def.dependency_mapping) {
+          const parentDef = attrDefs.find((d) => d.id === def.depends_on);
+          const mapping = def.dependency_mapping;
+          col.cellEditorParams = (params: { data: ReqObject }) => {
+            if (!parentDef || !mapping) return { values: def.enum_values };
+            const attrs = params.data?.attributes as Record<string, unknown> | null;
+            const parentValue = attrs?.[parentDef.name] as string | undefined;
+            if (parentValue && mapping[parentValue]) {
+              return { values: mapping[parentValue] };
+            }
+            return { values: def.enum_values };
+          };
+        } else {
+          col.cellEditorParams = { values: def.enum_values };
+        }
       } else if (def.data_type === "bool") {
         col.cellEditor = "agSelectCellEditor";
         col.cellEditorParams = { values: ["true", "false"] };
@@ -613,6 +683,18 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
               ) : (
                 <span style={{ width: "16px" }} />
               )}
+              {p.data!.is_placeholder && (
+                <span style={{
+                  display: "inline-block",
+                  padding: "1px 4px",
+                  borderRadius: 3,
+                  fontSize: "0.65rem",
+                  fontWeight: 700,
+                  color: "#fff",
+                  background: "#7b1fa2",
+                  marginRight: 4,
+                }}>PH</span>
+              )}
               <span>{p.value ?? ""}</span>
             </span>
           );
@@ -625,8 +707,13 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
         editable: true,
         autoHeight: true,
         wrapText: true,
-        cellRenderer: (p: ICellRendererParams<ReqObject>) =>
-          p.data?.body ? <Markdown>{p.data.body}</Markdown> : null,
+        cellRenderer: (p: ICellRendererParams<ReqObject>) => {
+          if (!p.data?.body) return null;
+          if (isHtmlContent(p.data.body)) {
+            return <div dangerouslySetInnerHTML={{ __html: p.data.body }} />;
+          }
+          return <Markdown>{p.data.body}</Markdown>;
+        },
       },
       {
         headerName: "Classification",
@@ -640,6 +727,39 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
           if (c === "informative") return { color: "#1565c0" };
           if (c === "heading") return { color: "#6a1b9a" };
           return null;
+        },
+      },
+      {
+        headerName: "State",
+        field: "lifecycle_state",
+        width: 120,
+        cellRenderer: (p: ICellRendererParams<ReqObject>) => {
+          if (!p.data?.lifecycle_state) return null;
+          const state = p.data.lifecycle_state;
+          // Find color from lifecycle model
+          let color = "#666";
+          if (p.data.lifecycle_model_id) {
+            const model = lifecycleModels.find((m) => m.id === p.data!.lifecycle_model_id);
+            if (model) {
+              const stateInfo = model.states.find((s) => s.name === state);
+              if (stateInfo?.color) color = stateInfo.color;
+            }
+          }
+          return (
+            <span
+              style={{
+                display: "inline-block",
+                padding: "2px 8px",
+                borderRadius: "10px",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                color: "#fff",
+                background: color,
+              }}
+            >
+              {state}
+            </span>
+          );
         },
       },
       ...attrColumns,
@@ -698,6 +818,16 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
                 Ref
               </button>
               <button
+                title="Attachments"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActivePanel({ type: "attachments", objectId: p.data!.id });
+                }}
+                style={{ padding: "2px 6px", fontSize: "0.8rem" }}
+              >
+                Att
+              </button>
+              <button
                 title="Comments"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -729,6 +859,34 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
                   Diff
                 </button>
               )}
+              {p.data.is_placeholder && (
+                <>
+                  <button
+                    title="Sync from source"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      api.syncPlaceholder(module.id, p.data!.id)
+                        .then(() => fetchObjects())
+                        .catch((err) => setError(err instanceof Error ? err.message : "Sync failed"));
+                    }}
+                    style={{ padding: "2px 6px", fontSize: "0.8rem" }}
+                  >
+                    Sync
+                  </button>
+                  <button
+                    title="Break placeholder link"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      api.breakPlaceholderLink(module.id, p.data!.id)
+                        .then(() => fetchObjects())
+                        .catch((err) => setError(err instanceof Error ? err.message : "Unlink failed"));
+                    }}
+                    style={{ padding: "2px 6px", fontSize: "0.8rem" }}
+                  >
+                    Unlink
+                  </button>
+                </>
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -742,7 +900,7 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
           ) : null,
       },
     ],
-    [handleDelete, handleToggleReview, attrColumns, layoutColDefs, childrenMap, collapsedIds, toggleCollapse],
+    [handleDelete, handleToggleReview, attrColumns, layoutColDefs, childrenMap, collapsedIds, toggleCollapse, lifecycleModels],
   );
 
   const tabStyle = (tab: Tab): React.CSSProperties => ({
@@ -761,11 +919,90 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <h1 style={{ marginTop: 0 }}>{module.name}</h1>
         <div style={{ display: "flex", gap: theme.spacing.sm, alignItems: "center" }}>
+          <input
+            ref={csvFileRef}
+            type="file"
+            accept=".csv"
+            style={{ display: "none" }}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setCsvImporting(true);
+              try {
+                const text = await file.text();
+                await api.importCsv(module.id, text);
+                fetchObjects();
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "CSV import failed");
+              } finally {
+                setCsvImporting(false);
+                if (csvFileRef.current) csvFileRef.current.value = "";
+              }
+            }}
+          />
+          <input
+            ref={xlsxFileRef}
+            type="file"
+            accept=".xlsx,.xls"
+            style={{ display: "none" }}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setXlsxImporting(true);
+              try {
+                const result = await api.importXlsx(module.id, file);
+                setError(null);
+                window.alert(`XLSX import: ${result.objects_created} created, ${result.objects_updated} updated`);
+                fetchObjects();
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "XLSX import failed");
+              } finally {
+                setXlsxImporting(false);
+                if (xlsxFileRef.current) xlsxFileRef.current.value = "";
+              }
+            }}
+          />
+          <button
+            onClick={() => csvFileRef.current?.click()}
+            disabled={csvImporting}
+            style={{ padding: `${theme.spacing.sm} ${theme.spacing.md}`, height: "fit-content" }}
+          >
+            {csvImporting ? "Importing..." : "Import CSV"}
+          </button>
+          <button
+            onClick={() => xlsxFileRef.current?.click()}
+            disabled={xlsxImporting}
+            style={{ padding: `${theme.spacing.sm} ${theme.spacing.md}`, height: "fit-content" }}
+          >
+            {xlsxImporting ? "Importing..." : "Import XLSX"}
+          </button>
+          <button
+            onClick={() => setDocxWizardOpen(true)}
+            style={{ padding: `${theme.spacing.sm} ${theme.spacing.md}`, height: "fit-content" }}
+          >
+            Import DOCX
+          </button>
+          <button
+            onClick={() => {
+              api.syncAllPlaceholders(module.id)
+                .then((r) => { window.alert(`Synced ${r.synced} placeholder(s)`); fetchObjects(); })
+                .catch((err) => setError(err instanceof Error ? err.message : "Sync failed"));
+            }}
+            style={{ padding: `${theme.spacing.sm} ${theme.spacing.md}`, height: "fit-content" }}
+          >
+            Sync Placeholders
+          </button>
           <button
             onClick={() => setActivePanel({ type: "preview" })}
             style={{ padding: `${theme.spacing.sm} ${theme.spacing.md}`, height: "fit-content" }}
           >
             Preview
+          </button>
+          <button
+            onClick={() => setActivePanel({ type: "template" })}
+            style={{ padding: `${theme.spacing.sm} ${theme.spacing.md}`, height: "fit-content" }}
+          >
+            Template
           </button>
           <div style={{ position: "relative" }}>
             <button
@@ -1150,6 +1387,12 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
                   onRowDragEnd={handleRowDragEnd}
                   onCellValueChanged={handleCellValueChanged}
                   onGridReady={() => setGridReady(true)}
+                  getRowStyle={(params) => {
+                    if (params.data?.is_placeholder) {
+                      return { background: "#f3e5f5" };
+                    }
+                    return undefined;
+                  }}
                   onRowClicked={(e) => {
                     const target = e.event?.target as HTMLElement | undefined;
                     if (target?.closest("button")) return;
@@ -1165,6 +1408,14 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
 
           <ActivityFeed moduleId={module.id} objects={objects} />
         </>
+      )}
+
+      {activeTab === "document" && (
+        <LiveDocPanel
+          moduleId={module.id}
+          objects={objects}
+          onObjectsChanged={fetchObjects}
+        />
       )}
 
       {activeTab === "links" && (
@@ -1188,7 +1439,7 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
       )}
 
       {activeTab === "types" && (
-        <ObjectTypePanel moduleId={module.id} />
+        <ObjectTypePanel moduleId={module.id} attrDefs={attrDefs} />
       )}
 
       {activeTab === "reviews" && (
@@ -1197,6 +1448,18 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
 
       {activeTab === "proposals" && (
         <ChangeProposalPanel moduleId={module.id} objects={objects} onObjectsChanged={fetchObjects} />
+      )}
+
+      {activeTab === "lifecycle" && (
+        <LifecyclePanel moduleId={module.id} />
+      )}
+
+      {activeTab === "tests" && (
+        <TestDashboard moduleId={module.id} objects={objects} />
+      )}
+
+      {activeTab === "diagrams" && (
+        <DiagramPanel moduleId={module.id} />
       )}
 
       {activeTab === "settings" && (
@@ -1248,10 +1511,29 @@ export function ModuleDetail({ module, onModuleUpdated }: Props) {
           onClose={() => setActivePanel(null)}
         />
       )}
+      {activePanel?.type === "attachments" && (
+        <AttachmentPanel
+          objectId={activePanel.objectId}
+          onClose={() => setActivePanel(null)}
+        />
+      )}
       {activePanel?.type === "preview" && (
         <PublishPreviewPanel
           moduleId={module.id}
           onClose={() => setActivePanel(null)}
+        />
+      )}
+      {activePanel?.type === "template" && (
+        <TemplateEditorPanel
+          moduleId={module.id}
+          onClose={() => setActivePanel(null)}
+        />
+      )}
+      {docxWizardOpen && (
+        <DocxImportWizard
+          moduleId={module.id}
+          onClose={() => setDocxWizardOpen(false)}
+          onImported={fetchObjects}
         />
       )}
     </div>

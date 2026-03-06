@@ -9,6 +9,8 @@ pub struct Model {
     pub object_id: Uuid,
     pub author_id: Option<Uuid>,
     pub body: String,
+    #[sea_orm(column_type = "JsonBinary")]
+    pub mentioned_user_ids: serde_json::Value,
     pub resolved: bool,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,

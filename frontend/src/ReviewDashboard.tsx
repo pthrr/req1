@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, isReviewed, type ReqObject, type ReviewPackage } from "./api/client";
+import { api, isReviewed, type ReqObject, type ReviewPackage, type VotingSummary } from "./api/client";
 import { theme } from "./theme";
 
 interface Props {
@@ -9,9 +9,11 @@ interface Props {
 
 export function ReviewDashboard({ moduleId, packages }: Props) {
   const [objects, setObjects] = useState<ReqObject[]>([]);
+  const [votingSummaries, setVotingSummaries] = useState<VotingSummary[]>([]);
 
   useEffect(() => {
     api.listObjects(moduleId).then((d) => setObjects(d.items)).catch(() => {});
+    api.getVotingSummary(moduleId).then(setVotingSummaries).catch(() => {});
   }, [moduleId]);
 
   const reviewed = objects.filter((o) => isReviewed(o)).length;
@@ -84,6 +86,43 @@ export function ReviewDashboard({ moduleId, packages }: Props) {
             )}
           </div>
         </div>
+
+        {/* Voting summary per package */}
+        {votingSummaries.length > 0 && (
+          <div style={{ width: "100%" }}>
+            <div style={{ fontSize: "0.85rem", marginBottom: "4px", fontWeight: 600 }}>
+              Voting Summary
+            </div>
+            {votingSummaries.map((vs) => {
+              const total = vs.total_assignments;
+              if (total === 0) return null;
+              const voteBarWidth = 250;
+              const approvedW = (vs.approved / total) * voteBarWidth;
+              const rejectedW = (vs.rejected / total) * voteBarWidth;
+              const abstainedW = (vs.abstained / total) * voteBarWidth;
+              const pendingW = (vs.pending / total) * voteBarWidth;
+              return (
+                <div key={vs.package_id} style={{ marginBottom: theme.spacing.sm }}>
+                  <div style={{ fontSize: "0.8rem", marginBottom: 2 }}>
+                    {vs.package_name} ({vs.package_status})
+                  </div>
+                  <svg width={voteBarWidth} height={18}>
+                    <rect x={0} y={0} width={approvedW} height={18} fill={theme.colors.success} />
+                    <rect x={approvedW} y={0} width={rejectedW} height={18} fill={theme.colors.error} />
+                    <rect x={approvedW + rejectedW} y={0} width={abstainedW} height={18} fill="#9e9e9e" />
+                    <rect x={approvedW + rejectedW + abstainedW} y={0} width={pendingW} height={18} fill="#ffb300" />
+                  </svg>
+                  <div style={{ display: "flex", gap: theme.spacing.sm, fontSize: "0.75rem", marginTop: 2 }}>
+                    <span style={{ color: theme.colors.success }}>Approved: {vs.approved}</span>
+                    <span style={{ color: theme.colors.error }}>Rejected: {vs.rejected}</span>
+                    <span style={{ color: "#9e9e9e" }}>Abstained: {vs.abstained}</span>
+                    <span style={{ color: "#ffb300" }}>Pending: {vs.pending}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,12 +1,12 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set,
+    QueryFilter, QueryOrder, QuerySelect, Set,
     sea_query::{Expr, Value},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use entity::{link, object, script};
+use entity::{attribute_definition, link, object, script};
 
 use crate::PaginatedResponse;
 use crate::error::CoreError;
@@ -16,6 +16,7 @@ use crate::level;
 use crate::scripting::engine::{
     Mutation, ScriptEngine, ScriptLink, ScriptObject, ScriptWorld, TriggerContext,
 };
+use crate::service::webhook::WebhookService;
 use crate::suspect;
 use crate::validation;
 
@@ -51,6 +52,11 @@ pub struct CreateObjectInput {
     pub classification: Option<String>,
     pub references: Option<serde_json::Value>,
     pub object_type_id: Option<Uuid>,
+    pub lifecycle_state: Option<String>,
+    pub lifecycle_model_id: Option<Uuid>,
+    pub source_object_id: Option<Uuid>,
+    pub source_module_id: Option<Uuid>,
+    pub is_placeholder: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,6 +70,8 @@ pub struct UpdateObjectInput {
     pub classification: Option<String>,
     pub references: Option<serde_json::Value>,
     pub object_type_id: Option<Uuid>,
+    pub expected_version: Option<i32>,
+    pub lifecycle_state: Option<String>,
 }
 
 const fn default_limit() -> u64 {
@@ -155,6 +163,7 @@ async fn run_triggers(
         .filter(script::Column::ScriptType.eq("trigger"))
         .filter(script::Column::HookPoint.eq(hook_point))
         .filter(script::Column::Enabled.eq(true))
+        .order_by(script::Column::Priority, Order::Asc)
         .all(db)
         .await?;
 
@@ -185,6 +194,71 @@ async fn run_triggers(
     }
 
     Ok(all_mutations)
+}
+
+/// Run all enabled post-trigger scripts for a module + `hook_point`.
+/// Post-triggers do NOT block the save — rejections are logged as warnings.
+async fn run_post_triggers(
+    db: &impl ConnectionTrait,
+    module_id: Uuid,
+    hook_point: &str,
+    script_obj: &ScriptObject,
+) -> Vec<Mutation> {
+    let scripts = match script::Entity::find()
+        .filter(script::Column::ModuleId.eq(module_id))
+        .filter(script::Column::ScriptType.eq("trigger"))
+        .filter(script::Column::HookPoint.eq(hook_point))
+        .filter(script::Column::Enabled.eq(true))
+        .order_by(script::Column::Priority, Order::Asc)
+        .all(db)
+        .await
+    {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!("failed to load {hook_point} scripts for module {module_id}: {e}");
+            return Vec::new();
+        }
+    };
+
+    if scripts.is_empty() {
+        return Vec::new();
+    }
+
+    let world = match load_world(db, module_id).await {
+        Ok(w) => w,
+        Err(e) => {
+            tracing::warn!("failed to load world for {hook_point} scripts: {e}");
+            return Vec::new();
+        }
+    };
+
+    let ctx = TriggerContext {
+        hook_point: hook_point.to_owned(),
+        object: script_obj.clone(),
+    };
+
+    let mut all_mutations = Vec::new();
+
+    for s in &scripts {
+        match ScriptEngine::run_trigger(&s.source_code, &world, &ctx) {
+            Ok(result) => {
+                if result.rejected {
+                    tracing::warn!(
+                        "post-trigger '{}' rejected (ignored): {}",
+                        s.name,
+                        result.reason.unwrap_or_else(|| "no reason given".to_owned())
+                    );
+                } else {
+                    all_mutations.extend(result.mutations);
+                }
+            }
+            Err(e) => {
+                tracing::warn!("post-trigger '{}' failed (ignored): {e}", s.name);
+            }
+        }
+    }
+
+    all_mutations
 }
 
 /// Apply attribute mutations from scripts to the active model.
@@ -223,6 +297,7 @@ fn apply_mutations(
 pub struct ObjectService;
 
 impl ObjectService {
+    #[allow(clippy::too_many_lines)]
     pub async fn create(
         db: &impl ConnectionTrait,
         input: CreateObjectInput,
@@ -285,9 +360,80 @@ impl ObjectService {
             final_attributes = Some(attrs);
         }
 
+        // Apply attribute defaults from definitions for any missing keys
+        let attr_defs = attribute_definition::Entity::find()
+            .filter(attribute_definition::Column::ModuleId.eq(input.module_id))
+            .all(db)
+            .await?;
+        for def in &attr_defs {
+            if let Some(ref default_val) = def.default_value {
+                let attrs = final_attributes.get_or_insert_with(|| {
+                    serde_json::Value::Object(serde_json::Map::new())
+                });
+                if let Some(map) = attrs.as_object_mut() {
+                    let _ = map.entry(&def.name)
+                        .or_insert_with(|| serde_json::Value::String(default_val.clone()));
+                }
+            }
+        }
+
+        // Determine lifecycle model and initial state
+        let lc_model_id = input
+            .lifecycle_model_id
+            .or(module.default_lifecycle_model_id);
+        let lc_state = if let Some(model_id) = lc_model_id {
+            if let Some(explicit_state) = &input.lifecycle_state {
+                Some(explicit_state.clone())
+            } else if let Ok(lc_model) =
+                crate::service::lifecycle::LifecycleService::get(db, model_id).await
+            {
+                Some(lc_model.initial_state)
+            } else {
+                None
+            }
+        } else {
+            input.lifecycle_state.clone()
+        };
+
+        // Placeholder auto-population from source
+        let is_ph = input.is_placeholder.unwrap_or(false);
+        let mut final_heading = input.heading.clone();
+        let mut final_body = input.body.clone();
+        if is_ph {
+            if let Some(source_id) = input.source_object_id {
+                // Validate source is not itself a placeholder
+                let source_obj = object::Entity::find_by_id(source_id)
+                    .one(db)
+                    .await?
+                    .ok_or_else(|| {
+                        CoreError::NotFound(format!("source object {source_id} not found"))
+                    })?;
+                if source_obj.is_placeholder {
+                    return Err(CoreError::BadRequest(
+                        "source object cannot be a placeholder itself (no chains)".to_owned(),
+                    ));
+                }
+                // Auto-populate from source if not explicitly provided
+                if final_heading.is_none() {
+                    final_heading.clone_from(&source_obj.heading);
+                }
+                if final_body.is_none() {
+                    final_body.clone_from(&source_obj.body);
+                }
+                if final_attributes.is_none() {
+                    final_attributes.clone_from(&source_obj.attributes);
+                }
+            } else {
+                return Err(CoreError::BadRequest(
+                    "is_placeholder=true requires source_object_id".to_owned(),
+                ));
+            }
+        }
+
+        // Recompute fingerprint with potentially populated values
         let fp = compute_content_fingerprint(
-            input.heading.as_deref(),
-            input.body.as_deref(),
+            final_heading.as_deref(),
+            final_body.as_deref(),
             final_attributes.as_ref(),
         );
 
@@ -297,8 +443,8 @@ impl ObjectService {
             parent_id: Set(input.parent_id),
             position: Set(input.position.unwrap_or(0)),
             level: Set("0".to_owned()),
-            heading: Set(input.heading.clone()),
-            body: Set(input.body.clone()),
+            heading: Set(final_heading.clone()),
+            body: Set(final_body.clone()),
             attributes: Set(final_attributes),
             current_version: Set(1),
             classification: Set(classification.to_owned()),
@@ -308,12 +454,21 @@ impl ObjectService {
             reviewed_by: Set(None),
             references_: Set(input.references.unwrap_or(serde_json::json!([]))),
             object_type_id: Set(input.object_type_id),
+            lifecycle_state: Set(lc_state),
+            lifecycle_model_id: Set(lc_model_id),
+            source_object_id: Set(input.source_object_id),
+            source_module_id: Set(input.source_module_id),
+            is_placeholder: Set(is_ph),
+            docx_source_id: Set(None),
             deleted_at: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
         };
 
         let _ = model.insert(db).await?;
+
+        let webhook_heading = final_heading;
+        let webhook_body = final_body;
 
         history::insert_history(
             db,
@@ -331,10 +486,49 @@ impl ObjectService {
 
         level::recompute_module_levels(db, input.module_id).await?;
 
-        object::Entity::find_by_id(id)
+        let _ = WebhookService::fire(
+            db,
+            input.module_id,
+            "object.created",
+            id,
+            serde_json::json!({"heading": webhook_heading, "body": webhook_body}),
+        )
+        .await;
+
+        let created = object::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::Internal("object not found after insert".to_owned()))
+            .ok_or_else(|| CoreError::Internal("object not found after insert".to_owned()))?;
+
+        // Run post_save triggers (non-blocking)
+        let post_obj = ScriptObject {
+            id: created.id.to_string(),
+            heading: created.heading.clone(),
+            body: created.body.clone(),
+            level: Some(created.level.clone()),
+            classification: Some(created.classification.clone()),
+            attributes: created.attributes.clone(),
+            version: created.current_version,
+        };
+        let post_mutations =
+            run_post_triggers(db, input.module_id, "post_save", &post_obj).await;
+        if !post_mutations.is_empty() {
+            let mut post_active: object::ActiveModel = created.clone().into();
+            apply_mutations(
+                &mut post_active,
+                id,
+                &post_mutations,
+                created.attributes.as_ref(),
+            );
+            post_active.updated_at = Set(chrono::Utc::now().fixed_offset());
+            let _ = post_active.update(db).await?;
+            return object::Entity::find_by_id(id)
+                .one(db)
+                .await?
+                .ok_or_else(|| CoreError::Internal("object not found after post_save".to_owned()));
+        }
+
+        Ok(created)
     }
 
     #[allow(clippy::too_many_lines)]
@@ -347,6 +541,14 @@ impl ObjectService {
             .one(db)
             .await?
             .ok_or_else(|| CoreError::NotFound(format!("object {id} not found")))?;
+
+        // Optimistic locking: reject if caller's version is stale
+        if let Some(expected) = input.expected_version.filter(|&v| v != existing.current_version) {
+            return Err(CoreError::Conflict(format!(
+                "object {id} version conflict: expected {expected}, found {}",
+                existing.current_version
+            )));
+        }
 
         let new_version = existing.current_version + 1;
         let module_id = existing.module_id;
@@ -384,6 +586,21 @@ impl ObjectService {
         }
         if let Some(object_type_id) = input.object_type_id {
             active.object_type_id = Set(Some(object_type_id));
+        }
+
+        // Lifecycle state transition enforcement
+        if let Some(ref new_state) = input.lifecycle_state {
+            if let Some(lc_model_id) = existing.lifecycle_model_id {
+                let current_state = existing.lifecycle_state.as_deref().unwrap_or("");
+                crate::service::lifecycle::LifecycleService::validate_transition(
+                    db,
+                    lc_model_id,
+                    current_state,
+                    new_state,
+                )
+                .await?;
+            }
+            active.lifecycle_state = Set(Some(new_state.clone()));
         }
 
         // Check required attributes: merge existing + new, then validate
@@ -463,6 +680,9 @@ impl ObjectService {
 
         let _ = active.update(db).await?;
 
+        let webhook_heading = input.heading.clone();
+        let webhook_body = input.body.clone();
+
         history::insert_history(
             db,
             HistoryEntry {
@@ -481,10 +701,49 @@ impl ObjectService {
             level::recompute_module_levels(db, module_id).await?;
         }
 
-        object::Entity::find_by_id(id)
+        let _ = WebhookService::fire(
+            db,
+            module_id,
+            "object.updated",
+            id,
+            serde_json::json!({"heading": webhook_heading, "body": webhook_body}),
+        )
+        .await;
+
+        let updated = object::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::Internal("object not found after update".to_owned()))
+            .ok_or_else(|| CoreError::Internal("object not found after update".to_owned()))?;
+
+        // Run post_save triggers (non-blocking)
+        let post_obj = ScriptObject {
+            id: updated.id.to_string(),
+            heading: updated.heading.clone(),
+            body: updated.body.clone(),
+            level: Some(updated.level.clone()),
+            classification: Some(updated.classification.clone()),
+            attributes: updated.attributes.clone(),
+            version: updated.current_version,
+        };
+        let post_mutations =
+            run_post_triggers(db, module_id, "post_save", &post_obj).await;
+        if !post_mutations.is_empty() {
+            let mut post_active: object::ActiveModel = updated.clone().into();
+            apply_mutations(
+                &mut post_active,
+                id,
+                &post_mutations,
+                updated.attributes.as_ref(),
+            );
+            post_active.updated_at = Set(chrono::Utc::now().fixed_offset());
+            let _ = post_active.update(db).await?;
+            return object::Entity::find_by_id(id)
+                .one(db)
+                .await?
+                .ok_or_else(|| CoreError::Internal("object not found after post_save".to_owned()));
+        }
+
+        Ok(updated)
     }
 
     pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
@@ -526,6 +785,18 @@ impl ObjectService {
         }
 
         level::recompute_module_levels(db, module_id).await?;
+
+        let _ = WebhookService::fire(
+            db,
+            module_id,
+            "object.deleted",
+            id,
+            serde_json::json!({"heading": existing.heading, "body": existing.body}),
+        )
+        .await;
+
+        // Run post_delete triggers (non-blocking, no mutations to apply)
+        let _ = run_post_triggers(db, module_id, "post_delete", &script_obj).await;
 
         Ok(())
     }
@@ -590,17 +861,36 @@ impl ObjectService {
             select = select.filter(object::Column::Classification.eq(classification.clone()));
         }
 
-        let order = match filter.sort_dir.as_deref() {
-            Some("desc") => Order::Desc,
-            _ => Order::Asc,
-        };
-        select = match filter.sort_by.as_deref() {
-            Some("heading") => select.order_by(object::Column::Heading, order),
-            Some("body") => select.order_by(object::Column::Body, order),
-            Some("current_version") => select.order_by(object::Column::CurrentVersion, order),
-            Some("updated_at") => select.order_by(object::Column::UpdatedAt, order),
-            _ => select.order_by(object::Column::Level, order),
-        };
+        // Multi-column sort: comma-separated sort_by/sort_dir values
+        let sort_cols: Vec<&str> = filter
+            .sort_by
+            .as_deref()
+            .map(|s| s.split(',').collect())
+            .unwrap_or_default();
+        let sort_dirs: Vec<&str> = filter
+            .sort_dir
+            .as_deref()
+            .map(|s| s.split(',').collect())
+            .unwrap_or_default();
+
+        if sort_cols.is_empty() {
+            select = select.order_by(object::Column::Level, Order::Asc);
+        } else {
+            for (i, col) in sort_cols.iter().enumerate() {
+                let dir = match sort_dirs.get(i) {
+                    Some(&"desc") => Order::Desc,
+                    _ => Order::Asc,
+                };
+                select = match *col {
+                    "heading" => select.order_by(object::Column::Heading, dir),
+                    "body" => select.order_by(object::Column::Body, dir),
+                    "current_version" => select.order_by(object::Column::CurrentVersion, dir),
+                    "updated_at" => select.order_by(object::Column::UpdatedAt, dir),
+                    "classification" => select.order_by(object::Column::Classification, dir),
+                    _ => select.order_by(object::Column::Level, dir),
+                };
+            }
+        }
 
         let paginator = select.paginate(db, filter.limit);
         let total = paginator.num_items().await?;
@@ -826,6 +1116,198 @@ impl ObjectService {
             .await?
             .ok_or_else(|| CoreError::Internal("object not found after move".to_owned()))
     }
+
+    /// Sync a placeholder object with its source, copying heading/body/attributes.
+    pub async fn sync_placeholder(
+        db: &impl ConnectionTrait,
+        id: Uuid,
+    ) -> Result<object::Model, CoreError> {
+        let existing = object::Entity::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| CoreError::NotFound(format!("object {id} not found")))?;
+
+        if !existing.is_placeholder {
+            return Err(CoreError::BadRequest(
+                "object is not a placeholder".to_owned(),
+            ));
+        }
+        let source_id = existing.source_object_id.ok_or_else(|| {
+            CoreError::Internal("placeholder missing source_object_id".to_owned())
+        })?;
+
+        let source = object::Entity::find_by_id(source_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| {
+                CoreError::NotFound(format!("source object {source_id} not found"))
+            })?;
+
+        let new_version = existing.current_version + 1;
+        let fp = compute_content_fingerprint(
+            source.heading.as_deref(),
+            source.body.as_deref(),
+            source.attributes.as_ref(),
+        );
+
+        let mut active: object::ActiveModel = existing.clone().into();
+        active.heading = Set(source.heading.clone());
+        active.body = Set(source.body.clone());
+        active.attributes = Set(source.attributes.clone());
+        active.content_fingerprint = Set(fp);
+        active.current_version = Set(new_version);
+        active.reviewed_fingerprint = Set(None);
+        active.reviewed_at = Set(None);
+        active.reviewed_by = Set(None);
+        active.updated_at = Set(chrono::Utc::now().fixed_offset());
+        let _ = active.update(db).await?;
+
+        history::insert_history(
+            db,
+            HistoryEntry {
+                object_id: id,
+                module_id: existing.module_id,
+                version: new_version,
+                attribute_values: source.attributes,
+                heading: source.heading,
+                body: source.body,
+                change_type: "sync".to_owned(),
+            },
+        )
+        .await?;
+
+        object::Entity::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| CoreError::Internal("object not found after sync".to_owned()))
+    }
+
+    /// Break the placeholder link, making the object independent.
+    pub async fn break_placeholder_link(
+        db: &impl ConnectionTrait,
+        id: Uuid,
+    ) -> Result<object::Model, CoreError> {
+        let existing = object::Entity::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| CoreError::NotFound(format!("object {id} not found")))?;
+
+        if !existing.is_placeholder {
+            return Err(CoreError::BadRequest(
+                "object is not a placeholder".to_owned(),
+            ));
+        }
+
+        let mut active: object::ActiveModel = existing.into();
+        active.is_placeholder = Set(false);
+        active.source_object_id = Set(None);
+        active.source_module_id = Set(None);
+        active.updated_at = Set(chrono::Utc::now().fixed_offset());
+        let result = active.update(db).await?;
+        Ok(result)
+    }
+
+    /// Sync all placeholders in a module, returning the count synced.
+    pub async fn sync_all_placeholders(
+        db: &impl ConnectionTrait,
+        module_id: Uuid,
+    ) -> Result<u64, CoreError> {
+        let placeholders = object::Entity::find()
+            .filter(object::Column::ModuleId.eq(module_id))
+            .filter(object::Column::IsPlaceholder.eq(true))
+            .filter(object::Column::DeletedAt.is_null())
+            .all(db)
+            .await?;
+
+        let mut count = 0u64;
+        for ph in &placeholders {
+            match Self::sync_placeholder(db, ph.id).await {
+                Ok(_) => count += 1,
+                Err(e) => {
+                    tracing::warn!("failed to sync placeholder {}: {e}", ph.id);
+                }
+            }
+        }
+
+        Ok(count)
+    }
+
+    /// Search across all modules using full-text search.
+    pub async fn search_global(
+        db: &impl ConnectionTrait,
+        query: &str,
+        limit: u64,
+    ) -> Result<Vec<GlobalSearchResult>, CoreError> {
+        let objects = object::Entity::find()
+            .filter(object::Column::DeletedAt.is_null())
+            .filter(Expr::cust_with_values(
+                "to_tsvector('english', COALESCE(heading, '') || ' ' || COALESCE(body, '')) @@ plainto_tsquery('english', $1)",
+                [Value::from(query.to_owned())],
+            ))
+            .order_by(object::Column::UpdatedAt, Order::Desc)
+            .limit(limit)
+            .all(db)
+            .await?;
+
+        // Fetch module info for all matched objects
+        let module_ids: Vec<Uuid> = objects.iter().map(|o| o.module_id).collect();
+        let modules = if module_ids.is_empty() {
+            Vec::new()
+        } else {
+            entity::module::Entity::find()
+                .filter(entity::module::Column::Id.is_in(module_ids))
+                .all(db)
+                .await?
+        };
+
+        // Fetch project info for workspace_id
+        let project_ids: Vec<Uuid> = modules.iter().map(|m| m.project_id).collect();
+        let projects = if project_ids.is_empty() {
+            Vec::new()
+        } else {
+            entity::project::Entity::find()
+                .filter(entity::project::Column::Id.is_in(project_ids))
+                .all(db)
+                .await?
+        };
+        let project_map: std::collections::HashMap<Uuid, Uuid> =
+            projects.into_iter().map(|p| (p.id, p.workspace_id)).collect();
+
+        let module_map: std::collections::HashMap<Uuid, (String, Uuid, Uuid)> = modules
+            .into_iter()
+            .map(|m| {
+                let workspace_id = project_map.get(&m.project_id).copied().unwrap_or_default();
+                (m.id, (m.name, m.project_id, workspace_id))
+            })
+            .collect();
+
+        let results = objects
+            .into_iter()
+            .map(|obj| {
+                let (module_name, project_id, workspace_id) = module_map
+                    .get(&obj.module_id)
+                    .cloned()
+                    .unwrap_or_default();
+                GlobalSearchResult {
+                    object: obj,
+                    module_name,
+                    project_id,
+                    workspace_id,
+                }
+            })
+            .collect();
+
+        Ok(results)
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct GlobalSearchResult {
+    #[serde(flatten)]
+    pub object: object::Model,
+    pub module_name: String,
+    pub project_id: Uuid,
+    pub workspace_id: Uuid,
 }
 
 fn check_required_attributes(

@@ -13,6 +13,9 @@ pub struct Model {
     #[sea_orm(column_type = "JsonBinary", nullable)]
     pub enum_values: Option<serde_json::Value>,
     pub multi_select: bool,
+    pub depends_on: Option<Uuid>,
+    #[sea_orm(column_type = "JsonBinary", nullable)]
+    pub dependency_mapping: Option<serde_json::Value>,
     pub created_at: DateTimeWithTimeZone,
 }
 

@@ -4,6 +4,10 @@ pub enum CoreError {
     NotFound(String),
     #[error("bad request: {0}")]
     BadRequest(String),
+    #[error("conflict: {0}")]
+    Conflict(String),
+    #[error("unauthorized: {0}")]
+    Unauthorized(String),
     #[error("internal: {0}")]
     Internal(String),
     #[error("reqif: {0}")]

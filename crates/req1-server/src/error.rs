@@ -13,6 +13,15 @@ pub enum AppError {
     #[error("bad request: {0}")]
     BadRequest(String),
 
+    #[error("unauthorized: {0}")]
+    Unauthorized(String),
+
+    #[error("forbidden: {0}")]
+    Forbidden(String),
+
+    #[error("conflict: {0}")]
+    Conflict(String),
+
     #[error("internal error: {0}")]
     Internal(String),
 
@@ -26,6 +35,8 @@ impl From<req1_core::error::CoreError> for AppError {
             req1_core::error::CoreError::NotFound(msg) => Self::NotFound(msg),
             req1_core::error::CoreError::BadRequest(msg)
             | req1_core::error::CoreError::Reqif(msg) => Self::BadRequest(msg),
+            req1_core::error::CoreError::Unauthorized(msg) => Self::Unauthorized(msg),
+            req1_core::error::CoreError::Conflict(msg) => Self::Conflict(msg),
             req1_core::error::CoreError::Internal(msg) => Self::Internal(msg),
             req1_core::error::CoreError::Db(db_err) => Self::DbError(db_err),
         }
@@ -37,6 +48,9 @@ impl IntoResponse for AppError {
         let (status, code, message) = match &self {
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, "NOT_FOUND", msg.clone()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "BAD_REQUEST", msg.clone()),
+            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED", msg.clone()),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, "FORBIDDEN", msg.clone()),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, "CONFLICT", msg.clone()),
             AppError::Internal(msg) => {
                 tracing::error!("Internal error: {msg}");
                 (

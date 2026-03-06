@@ -15,6 +15,10 @@ pub struct Model {
     #[sea_orm(column_type = "JsonBinary")]
     pub required_attributes: serde_json::Value,
     pub default_classification: String,
+    pub publish_template: Option<String>,
+    pub default_lifecycle_model_id: Option<Uuid>,
+    #[sea_orm(column_type = "JsonBinary")]
+    pub signature_config: serde_json::Value,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }

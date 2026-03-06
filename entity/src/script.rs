@@ -15,6 +15,10 @@ pub struct Model {
     #[sea_orm(column_type = "Text")]
     pub source_code: String,
     pub enabled: bool,
+    pub priority: i32,
+    pub cron_expression: Option<String>,
+    pub last_run_at: Option<DateTimeWithTimeZone>,
+    pub next_run_at: Option<DateTimeWithTimeZone>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }

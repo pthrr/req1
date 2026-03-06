@@ -34,6 +34,8 @@ export function BaselinePanel({ moduleId }: Props) {
   const [newSetName, setNewSetName] = useState("");
   const [newSetVersion, setNewSetVersion] = useState("");
   const [showSetForm, setShowSetForm] = useState(false);
+  const [crossModuleMode, setCrossModuleMode] = useState(false);
+  const [allBaselines, setAllBaselines] = useState<Baseline[]>([]);
 
   const fetchBaselines = useCallback(async () => {
     try {
@@ -44,6 +46,15 @@ export function BaselinePanel({ moduleId }: Props) {
       setError(err instanceof Error ? err.message : "Failed to load baselines");
     }
   }, [moduleId]);
+
+  const fetchAllBaselines = useCallback(async () => {
+    try {
+      const data = await api.listAllBaselines(500);
+      setAllBaselines(data.items);
+    } catch {
+      // Non-critical
+    }
+  }, []);
 
   const fetchBaselineSets = useCallback(async () => {
     try {
@@ -58,6 +69,10 @@ export function BaselinePanel({ moduleId }: Props) {
     fetchBaselines();
     fetchBaselineSets();
   }, [fetchBaselines, fetchBaselineSets]);
+
+  useEffect(() => {
+    if (crossModuleMode) fetchAllBaselines();
+  }, [crossModuleMode, fetchAllBaselines]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,7 +139,9 @@ export function BaselinePanel({ moduleId }: Props) {
   const handleDiff = async () => {
     if (!diffA || !diffB || diffA === diffB) return;
     try {
-      const data = await api.diffBaselines(moduleId, diffA, diffB);
+      const data = crossModuleMode
+        ? await api.diffBaselinesGlobal(diffA, diffB)
+        : await api.diffBaselines(moduleId, diffA, diffB);
       setDiff(data);
       setDetail(null);
       setError(null);
@@ -274,38 +291,61 @@ export function BaselinePanel({ moduleId }: Props) {
         </tbody>
       </table>
 
-      {filteredBaselines.length >= 2 && (
-        <div
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            alignItems: "center",
-            marginTop: "0.75rem",
-          }}
-        >
-          <span style={{ fontSize: "0.9rem" }}>Compare:</span>
-          <select value={diffA} onChange={(e) => setDiffA(e.target.value)}>
-            <option value="">Baseline A</option>
-            {filteredBaselines.map((bl) => (
-              <option key={bl.id} value={bl.id}>
-                {bl.name}
-              </option>
-            ))}
-          </select>
-          <span>vs</span>
-          <select value={diffB} onChange={(e) => setDiffB(e.target.value)}>
-            <option value="">Baseline B</option>
-            {filteredBaselines.map((bl) => (
-              <option key={bl.id} value={bl.id}>
-                {bl.name}
-              </option>
-            ))}
-          </select>
-          <button onClick={handleDiff} disabled={!diffA || !diffB || diffA === diffB}>
-            Diff
-          </button>
-        </div>
-      )}
+      {(() => {
+        const compareBaselines = crossModuleMode ? allBaselines : filteredBaselines;
+        if (compareBaselines.length < 2) return null;
+        return (
+          <div
+            style={{
+              display: "flex",
+              gap: "0.5rem",
+              alignItems: "center",
+              marginTop: "0.75rem",
+              flexWrap: "wrap",
+            }}
+          >
+            <span style={{ fontSize: "0.9rem" }}>Compare:</span>
+            <button
+              onClick={() => {
+                setCrossModuleMode((p) => !p);
+                setDiffA("");
+                setDiffB("");
+                setDiff(null);
+              }}
+              style={{
+                padding: "2px 8px",
+                fontSize: "0.8rem",
+                background: crossModuleMode ? "#e3f2fd" : "transparent",
+                border: "1px solid #ddd",
+                borderRadius: 3,
+                cursor: "pointer",
+              }}
+            >
+              {crossModuleMode ? "Cross-Module" : "This Module"}
+            </button>
+            <select value={diffA} onChange={(e) => setDiffA(e.target.value)}>
+              <option value="">Baseline A</option>
+              {compareBaselines.map((bl) => (
+                <option key={bl.id} value={bl.id}>
+                  {bl.name}{crossModuleMode ? ` (${bl.module_id.slice(0, 8)}...)` : ""}
+                </option>
+              ))}
+            </select>
+            <span>vs</span>
+            <select value={diffB} onChange={(e) => setDiffB(e.target.value)}>
+              <option value="">Baseline B</option>
+              {compareBaselines.map((bl) => (
+                <option key={bl.id} value={bl.id}>
+                  {bl.name}{crossModuleMode ? ` (${bl.module_id.slice(0, 8)}...)` : ""}
+                </option>
+              ))}
+            </select>
+            <button onClick={handleDiff} disabled={!diffA || !diffB || diffA === diffB}>
+              Diff
+            </button>
+          </div>
+        );
+      })()}
 
       {detail && (
         <div style={{ marginTop: "1rem" }}>

@@ -26,6 +26,8 @@ pub fn routes() -> Router<AppState> {
             get(get_baseline).delete(delete_baseline),
         )
         .route("/modules/{module_id}/baseline-diff", get(diff_baselines))
+        .route("/baseline-diff", get(diff_baselines_global))
+        .route("/baselines", get(list_all_baselines))
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,5 +103,29 @@ async fn diff_baselines(
         },
     )
     .await?;
+    Ok(Json(result))
+}
+
+async fn diff_baselines_global(
+    State(state): State<AppState>,
+    Query(query): Query<DiffQuery>,
+) -> Result<Json<BaselineDiff>, AppError> {
+    let result = BaselineService::diff(
+        &state.db,
+        DiffBaselineInput {
+            a: query.a,
+            b: query.b,
+        },
+    )
+    .await?;
+    Ok(Json(result))
+}
+
+async fn list_all_baselines(
+    State(state): State<AppState>,
+    Query(pagination): Query<Pagination>,
+) -> Result<Json<PaginatedResponse<entity::baseline::Model>>, AppError> {
+    let result =
+        BaselineService::list_all(&state.db, pagination.offset, pagination.limit).await?;
     Ok(Json(result))
 }

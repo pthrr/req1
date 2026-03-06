@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::get,
 };
 use sea_orm::{
@@ -11,8 +11,11 @@ use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
 use entity::{object, script};
+use req1_core::PaginatedResponse;
+use req1_core::Pagination;
 use req1_core::scripting::engine::{Mutation, ScriptEngine, ScriptObject, TriggerContext};
 use req1_core::service::object::load_world;
+use req1_core::service::scheduler::SchedulerService;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -36,6 +39,10 @@ pub fn routes() -> Router<AppState> {
             "/modules/{module_id}/scripts/{id}/layout",
             axum::routing::post(batch_layout),
         )
+        .route(
+            "/modules/{module_id}/scripts/{id}/executions",
+            get(list_executions),
+        )
 }
 
 const VALID_SCRIPT_TYPES: &[&str] = &["trigger", "layout", "action"];
@@ -53,6 +60,8 @@ struct CreateScriptRequest {
     hook_point: Option<String>,
     source_code: String,
     enabled: Option<bool>,
+    priority: Option<i32>,
+    cron_expression: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,6 +71,8 @@ struct UpdateScriptRequest {
     hook_point: Option<String>,
     source_code: Option<String>,
     enabled: Option<bool>,
+    priority: Option<i32>,
+    cron_expression: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -117,6 +128,13 @@ async fn create_script(
         }
     }
 
+    let next_run = if let Some(ref cron_expr) = body.cron_expression {
+        SchedulerService::validate_cron(cron_expr)?;
+        Some(SchedulerService::next_run_time(cron_expr)?)
+    } else {
+        None
+    };
+
     let now = chrono::Utc::now().fixed_offset();
     let id = Uuid::now_v7();
 
@@ -128,6 +146,10 @@ async fn create_script(
         hook_point: Set(body.hook_point),
         source_code: Set(body.source_code),
         enabled: Set(body.enabled.unwrap_or(true)),
+        priority: Set(body.priority.unwrap_or(100)),
+        cron_expression: Set(body.cron_expression),
+        last_run_at: Set(None),
+        next_run_at: Set(next_run),
         created_at: Set(now),
         updated_at: Set(now),
     };
@@ -204,6 +226,15 @@ async fn update_script(
     }
     if let Some(enabled) = body.enabled {
         active.enabled = Set(enabled);
+    }
+    if let Some(priority) = body.priority {
+        active.priority = Set(priority);
+    }
+    if let Some(ref cron_expression) = body.cron_expression {
+        SchedulerService::validate_cron(cron_expression)?;
+        let next_run = SchedulerService::next_run_time(cron_expression)?;
+        active.cron_expression = Set(Some(cron_expression.clone()));
+        active.next_run_at = Set(Some(next_run));
     }
     active.updated_at = Set(chrono::Utc::now().fixed_offset());
 
@@ -356,6 +387,17 @@ async fn batch_layout(
     }
 
     Ok(Json(BatchLayoutResponse { results }))
+}
+
+async fn list_executions(
+    State(state): State<AppState>,
+    Path((_module_id, id)): Path<(Uuid, Uuid)>,
+    Query(pagination): Query<Pagination>,
+) -> Result<Json<PaginatedResponse<entity::script_execution::Model>>, AppError> {
+    let result =
+        SchedulerService::list_executions(&state.db, id, pagination.offset, pagination.limit)
+            .await?;
+    Ok(Json(result))
 }
 
 async fn apply_action_mutations(

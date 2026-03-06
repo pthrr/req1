@@ -10,6 +10,46 @@ use crate::PaginatedResponse;
 use crate::error::CoreError;
 
 #[derive(Debug, Deserialize)]
+pub struct FormLayout {
+    pub sections: Vec<FormSection>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FormSection {
+    pub id: String,
+    pub title: String,
+    #[serde(default = "default_columns")]
+    pub columns: u8,
+    #[serde(default)]
+    pub fields: Vec<FormField>,
+}
+
+const fn default_columns() -> u8 {
+    1
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FormField {
+    pub attribute_name: String,
+    #[serde(default)]
+    pub order: u32,
+    pub width: Option<String>,
+    pub required: Option<bool>,
+}
+
+fn validate_attribute_schema(schema: &serde_json::Value) -> Result<(), CoreError> {
+    // Empty object is valid (no layout configured)
+    if schema.is_object() && schema.as_object().is_some_and(serde_json::Map::is_empty) {
+        return Ok(());
+    }
+    // Otherwise, must be deserializable as FormLayout
+    let _layout: FormLayout = serde_json::from_value(schema.clone()).map_err(|e| {
+        CoreError::BadRequest(format!("invalid attribute_schema: {e}"))
+    })?;
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
 pub struct CreateObjectTypeInput {
     pub module_id: Uuid,
     pub name: String,
@@ -35,6 +75,10 @@ impl ObjectTypeService {
         db: &impl ConnectionTrait,
         input: CreateObjectTypeInput,
     ) -> Result<object_type::Model, CoreError> {
+        if let Some(ref schema) = input.attribute_schema {
+            validate_attribute_schema(schema)?;
+        }
+
         let now = chrono::Utc::now().fixed_offset();
         let id = Uuid::now_v7();
 
@@ -61,6 +105,10 @@ impl ObjectTypeService {
         id: Uuid,
         input: UpdateObjectTypeInput,
     ) -> Result<object_type::Model, CoreError> {
+        if let Some(ref schema) = input.attribute_schema {
+            validate_attribute_schema(schema)?;
+        }
+
         let existing = object_type::Entity::find_by_id(id)
             .one(db)
             .await?

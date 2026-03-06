@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type ObjectType } from "./api/client";
+import { api, type AttributeDefinition, type ObjectType } from "./api/client";
+import { FormLayoutEditor } from "./FormLayoutEditor";
 
 const CLASSIFICATIONS = ["normative", "informative", "heading"] as const;
 
 interface Props {
   moduleId: string;
+  attrDefs?: AttributeDefinition[];
 }
 
-export function ObjectTypePanel({ moduleId }: Props) {
+export function ObjectTypePanel({ moduleId, attrDefs = [] }: Props) {
   const [types, setTypes] = useState<ObjectType[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [layoutType, setLayoutType] = useState<ObjectType | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [defaultClassification, setDefaultClassification] = useState("normative");
@@ -199,6 +202,9 @@ export function ObjectTypePanel({ moduleId }: Props) {
                     <button onClick={() => startEdit(t)} style={{ marginRight: "0.25rem" }}>
                       Edit
                     </button>
+                    <button onClick={() => setLayoutType(t)} style={{ marginRight: "0.25rem" }}>
+                      Layout
+                    </button>
                     <button onClick={() => handleDelete(t.id)}>Delete</button>
                   </td>
                 </>
@@ -217,6 +223,18 @@ export function ObjectTypePanel({ moduleId }: Props) {
           )}
         </tbody>
       </table>
+
+      {layoutType && (
+        <FormLayoutEditor
+          objectType={layoutType}
+          attrDefs={attrDefs}
+          onSave={() => {
+            setLayoutType(null);
+            fetchTypes();
+          }}
+          onClose={() => setLayoutType(null)}
+        />
+      )}
     </div>
   );
 }

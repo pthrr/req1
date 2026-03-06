@@ -23,6 +23,10 @@ pub fn routes() -> Router<AppState> {
                 .patch(update_attribute_definition)
                 .delete(delete_attribute_definition),
         )
+        .route(
+            "/modules/{module_id}/attribute-definitions/{id}/allowed-values",
+            get(get_allowed_values),
+        )
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,6 +36,8 @@ struct CreateAttributeDefinitionRequest {
     default_value: Option<String>,
     enum_values: Option<serde_json::Value>,
     multi_select: Option<bool>,
+    depends_on: Option<Uuid>,
+    dependency_mapping: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,6 +47,13 @@ struct UpdateAttributeDefinitionRequest {
     default_value: Option<String>,
     enum_values: Option<serde_json::Value>,
     multi_select: Option<bool>,
+    depends_on: Option<Uuid>,
+    dependency_mapping: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AllowedValuesQuery {
+    parent_value: String,
 }
 
 async fn list_attribute_definitions(
@@ -117,6 +130,8 @@ async fn create_attribute_definition(
             },
         ),
         multi_select: Set(body.multi_select.unwrap_or(false)),
+        depends_on: Set(body.depends_on),
+        dependency_mapping: Set(body.dependency_mapping),
         created_at: Set(now),
     };
 
@@ -182,6 +197,12 @@ async fn update_attribute_definition(
     if let Some(multi_select) = body.multi_select {
         active.multi_select = Set(multi_select);
     }
+    if let Some(depends_on) = body.depends_on {
+        active.depends_on = Set(Some(depends_on));
+    }
+    if let Some(dependency_mapping) = body.dependency_mapping {
+        active.dependency_mapping = Set(Some(dependency_mapping));
+    }
 
     let result = active.update(&state.db).await?;
     Ok(Json(result))
@@ -200,4 +221,31 @@ async fn delete_attribute_definition(
         )));
     }
     Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+async fn get_allowed_values(
+    State(state): State<AppState>,
+    Path((_module_id, id)): Path<(Uuid, Uuid)>,
+    Query(query): Query<AllowedValuesQuery>,
+) -> Result<Json<Vec<String>>, AppError> {
+    let def = attribute_definition::Entity::find_by_id(id)
+        .one(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("attribute definition {id} not found")))?;
+
+    let Some(ref mapping) = def.dependency_mapping else {
+        return Ok(Json(Vec::new()));
+    };
+
+    let allowed = mapping
+        .get(&query.parent_value)
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(Json(allowed))
 }

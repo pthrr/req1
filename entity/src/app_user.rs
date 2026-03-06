@@ -9,6 +9,8 @@ pub struct Model {
     pub email: String,
     pub display_name: String,
     pub role: String,
+    #[serde(skip_serializing)]
+    pub password_hash: Option<String>,
     pub active: bool,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,

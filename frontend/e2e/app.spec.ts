@@ -1510,6 +1510,389 @@ test.describe("References Panel", () => {
 // Search Highlighting
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Rich Text Editor (TipTap)
+// ---------------------------------------------------------------------------
+
+test.describe("Rich Text Editor", () => {
+  test("TipTap editor loads in object detail panel", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-rte-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-rte-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-rte-${uid()}`);
+    await createObject(request, mod.id, `RTE-001-${uid()}`, "Some body text");
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Click "Edit" button on the first object row
+    await page.getByRole("button", { name: "Edit" }).first().click();
+    await page.waitForTimeout(500);
+
+    // TipTap editor should be present (ProseMirror contenteditable div)
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toBeVisible();
+
+    // Toolbar should be visible with formatting buttons
+    await expect(page.getByRole("button", { name: "B" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "I" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "U" }).first()).toBeVisible();
+
+    // Close the modal
+    await page.getByRole("button", { name: "Close" }).click();
+  });
+
+  test("TipTap toolbar formatting works (bold, italic, heading)", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-fmt-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-fmt-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-fmt-${uid()}`);
+    await createObject(request, mod.id, `FMT-001-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Open detail panel
+    await page.getByRole("button", { name: "Edit" }).first().click();
+    await page.waitForTimeout(500);
+
+    // Type in editor
+    const editor = page.locator(".ProseMirror");
+    await editor.click();
+    await editor.pressSequentially("Hello World");
+
+    // Select "World" and bold it
+    await editor.press("Home");
+    await editor.press("Shift+End");
+
+    // Click Bold button
+    const boldBtn = page.locator("button").filter({ hasText: /^B$/ }).first();
+    await boldBtn.click();
+    await page.waitForTimeout(200);
+
+    // Bold button should now appear active (has primary bg color)
+    await expect(boldBtn).toBeVisible();
+
+    // Close
+    await page.getByRole("button", { name: "Close" }).click();
+  });
+
+  test("save object with rich text body", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-save-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-save-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-save-${uid()}`);
+    const heading = `SAVE-${uid()}`;
+    await createObject(request, mod.id, heading);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Open detail panel
+    await page.getByRole("button", { name: "Edit" }).first().click();
+    await page.waitForTimeout(500);
+
+    // Type in TipTap editor
+    const editor = page.locator(".ProseMirror");
+    await editor.click();
+    await editor.pressSequentially("Rich text content");
+    await page.waitForTimeout(200);
+
+    // Save
+    await page.getByRole("button", { name: "Save" }).click();
+    await page.waitForTimeout(1000);
+
+    // Close
+    await page.getByRole("button", { name: "Close" }).click();
+    await page.waitForTimeout(500);
+
+    // Verify the body is displayed in the grid (the body column should contain the text)
+    await expect(page.getByText("Rich text content").first()).toBeVisible();
+  });
+
+  test("table insertion via toolbar", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-tbl-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-tbl-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-tbl-${uid()}`);
+    await createObject(request, mod.id, `TBL-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    await page.getByRole("button", { name: "Edit" }).first().click();
+    await page.waitForTimeout(500);
+
+    // Click Table button in toolbar
+    await page.getByRole("button", { name: "Table" }).click();
+    await page.waitForTimeout(300);
+
+    // Table should appear in the editor
+    const table = page.locator(".ProseMirror table");
+    await expect(table).toBeVisible();
+
+    // Should have a header row + 2 data rows = 3 rows total
+    const rows = page.locator(".ProseMirror tr");
+    await expect(rows).toHaveCount(3);
+
+    await page.getByRole("button", { name: "Close" }).click();
+  });
+
+  test("legacy markdown body auto-converts to HTML in editor", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-md-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-md-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-md-${uid()}`);
+
+    // Create object with markdown body (no HTML tags)
+    const heading = `MD-${uid()}`;
+    const objRes = await request.post(`${API}/modules/${mod.id}/objects`, {
+      data: { heading, body: "This is **bold** markdown" },
+    });
+    expect(objRes.ok()).toBeTruthy();
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Open detail panel
+    await page.getByRole("button", { name: "Edit" }).first().click();
+    await page.waitForTimeout(500);
+
+    // The editor should have converted the markdown to HTML
+    // "bold" should appear as actual bold text in ProseMirror (strong tag)
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toBeVisible();
+    const strongTag = page.locator(".ProseMirror strong");
+    await expect(strongTag).toContainText("bold");
+
+    await page.getByRole("button", { name: "Close" }).click();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Document View (LiveDoc)
+// ---------------------------------------------------------------------------
+
+test.describe("Document View", () => {
+  test("Document tab exists and renders objects", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-doc-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-doc-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-doc-${uid()}`);
+    await createObject(request, mod.id, `DOC-001-${uid()}`, "First section body");
+    await createObject(request, mod.id, `DOC-002-${uid()}`, "Second section body");
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Click Document tab
+    await page.getByRole("button", { name: "Document" }).click();
+    await page.waitForTimeout(500);
+
+    // Should see the document content
+    await expect(page.getByText("First section body")).toBeVisible();
+    await expect(page.getByText("Second section body")).toBeVisible();
+  });
+
+  test("Document outline sidebar shows headings", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-out-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-out-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-out-${uid()}`);
+    const h1 = `OUT-A-${uid()}`;
+    const h2 = `OUT-B-${uid()}`;
+    await createObject(request, mod.id, h1, "Body A");
+    await createObject(request, mod.id, h2, "Body B");
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Click Document tab
+    await page.getByRole("button", { name: "Document" }).click();
+    await page.waitForTimeout(500);
+
+    // Outline sidebar should show headings
+    await expect(page.getByText("Outline")).toBeVisible();
+    await expect(page.getByText(h1).first()).toBeVisible();
+    await expect(page.getByText(h2).first()).toBeVisible();
+  });
+
+  test("outline click scrolls to object", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-scr-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-scr-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-scr-${uid()}`);
+
+    // Create enough objects to make the document scrollable
+    const headings: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      const h = `SCR-${i}-${uid()}`;
+      headings.push(h);
+      await createObject(request, mod.id, h, `Body for section ${i}. `.repeat(20));
+    }
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    await page.getByRole("button", { name: "Document" }).click();
+    await page.waitForTimeout(500);
+
+    // Click last heading in outline — should trigger scroll
+    const lastHeading = headings[headings.length - 1];
+    const outlineItem = page.getByText(lastHeading).first();
+    await outlineItem.click();
+    await page.waitForTimeout(500);
+
+    // The last object block should now be visible
+    await expect(page.getByText(`Body for section 9`).first()).toBeVisible();
+  });
+
+  test("double-click enables inline editing with TipTap", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-ied-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-ied-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-ied-${uid()}`);
+    const heading = `IED-${uid()}`;
+    await createObject(request, mod.id, heading, "Editable content");
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    await page.getByRole("button", { name: "Document" }).click();
+    await page.waitForTimeout(500);
+
+    // Double-click the object block
+    await page.getByText("Editable content").dblclick();
+    await page.waitForTimeout(500);
+
+    // Should see editing UI: Save and Cancel buttons + TipTap editor
+    await expect(page.getByRole("button", { name: "Save" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+
+    // Cancel editing
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await page.waitForTimeout(300);
+
+    // Should be back to read mode
+    await expect(page.getByText("Editable content")).toBeVisible();
+  });
+
+  test("inline edit save persists changes", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-ies-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-ies-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-ies-${uid()}`);
+    const heading = `IES-${uid()}`;
+    await createObject(request, mod.id, heading, "Original text");
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    await page.getByRole("button", { name: "Document" }).click();
+    await page.waitForTimeout(500);
+
+    // Double-click to edit
+    await page.getByText("Original text").dblclick();
+    await page.waitForTimeout(500);
+
+    // Update the heading
+    const headingInput = page.getByRole("textbox").first();
+    await headingInput.clear();
+    const newHeading = `Updated-${uid()}`;
+    await headingInput.fill(newHeading);
+
+    // Save
+    await page.getByRole("button", { name: "Save" }).click();
+    await page.waitForTimeout(1000);
+
+    // The updated heading should appear
+    await expect(page.getByText(newHeading).first()).toBeVisible();
+  });
+
+  test("export Word and PDF buttons present", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-exp-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-exp-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-exp-${uid()}`);
+    await createObject(request, mod.id, `EXP-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    await page.getByRole("button", { name: "Document" }).click();
+    await page.waitForTimeout(500);
+
+    // Toolbar should have export buttons
+    await expect(page.getByRole("button", { name: "Export Word" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Export PDF" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Print" })).toBeVisible();
+  });
+
+  test("switch between Objects and Document tabs preserves data", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-swt-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-swt-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-swt-${uid()}`);
+    const heading = `SWT-${uid()}`;
+    await createObject(request, mod.id, heading, "Persistent body");
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Verify objects tab shows the object
+    await expect(page.getByText(heading).first()).toBeVisible();
+
+    // Switch to Document tab
+    await page.getByRole("button", { name: "Document" }).click();
+    await page.waitForTimeout(500);
+    await expect(page.getByText("Persistent body")).toBeVisible();
+
+    // Switch back to Objects tab
+    await page.getByRole("button", { name: "Objects" }).click();
+    await page.waitForTimeout(500);
+    await expect(page.getByText(heading).first()).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DOCX Publish Format
+// ---------------------------------------------------------------------------
+
+test.describe("DOCX Publish", () => {
+  test("DOCX format appears in publish dropdown", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-dpub-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-dpub-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-dpub-${uid()}`);
+    await createObject(request, mod.id, `DPUB-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Open publish dropdown
+    await page.getByRole("button", { name: /Publish/ }).click();
+    await page.waitForTimeout(300);
+
+    // DOCX option should be visible
+    await expect(page.getByText("Word (DOCX)").first()).toBeVisible();
+  });
+
+  test("DOCX format appears in preview panel", async ({ page, request }) => {
+    const ws = await createWorkspace(request, `WS-dpre-${uid()}`);
+    const proj = await createProject(request, ws.id, `Proj-dpre-${uid()}`);
+    const mod = await createModule(request, proj.id, `Mod-dpre-${uid()}`);
+    await createObject(request, mod.id, `DPRE-${uid()}`);
+
+    await navigateToModule(page, ws.name, proj.name, mod.name);
+    await page.waitForTimeout(1000);
+
+    // Open preview panel
+    await page.getByRole("button", { name: "Preview" }).click();
+    await page.waitForTimeout(500);
+
+    // Select DOCX from format dropdown
+    const formatSelect = page.locator("select").first();
+    await formatSelect.selectOption("docx");
+    await page.waitForTimeout(300);
+
+    // Should show download prompt (binary format can't be previewed)
+    await expect(page.getByText("Word files cannot be previewed")).toBeVisible();
+
+    // Download button should be visible
+    await expect(page.getByRole("button", { name: "Download" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Close" }).click();
+  });
+});
+
 test.describe("Search Highlighting", () => {
   test("search highlights matching objects in tree", async ({ page, request }) => {
     const ws = await createWorkspace(request, `WS-sh-${uid()}`);

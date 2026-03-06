@@ -17,5 +17,17 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 minijinja = { workspace = true }
 pulldown-cmark = { workspace = true }
+reqwest = { workspace = true }
 entity = { path = "../../entity" }
+csv = { workspace = true }
+serde_yaml = { workspace = true }
+rust_xlsxwriter = { workspace = true }
+calamine = { workspace = true }
+regex = { workspace = true }
 req1-reqif = { path = "../req1-reqif" }
+jsonwebtoken = { workspace = true }
+bcrypt = { workspace = true }
+cron = { workspace = true }
+docx-rs = { workspace = true }
+zip = { workspace = true }
+quick-xml = { workspace = true }

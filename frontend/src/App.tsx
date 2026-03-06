@@ -1,11 +1,26 @@
-import { useState } from "react";
-import { Outlet, useLocation, useParams } from "react-router";
+import { useEffect, useState } from "react";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { Sidebar } from "./Sidebar";
+import { GlobalSearch } from "./GlobalSearch";
+import { NotificationBell } from "./NotificationBell";
 import { useTheme } from "./ThemeContext";
+import { useAuth } from "./AuthContext";
 
 export function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { theme, mode, toggleMode } = useTheme();
+  const { user, loading, logout } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/login");
+    }
+  }, [loading, user, navigate]);
+
+  if (loading) {
+    return <div style={{ padding: 40, textAlign: "center" }}>Loading...</div>;
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: theme.fontFamily, background: theme.colors.bg, color: theme.colors.text }}>
@@ -23,20 +38,45 @@ export function App() {
         }}
       >
         <Breadcrumbs />
-        <button
-          onClick={toggleMode}
-          style={{
-            padding: "4px 12px",
-            fontSize: "0.85rem",
-            background: "none",
-            border: `1px solid ${theme.colors.border}`,
-            borderRadius: theme.borderRadius,
-            cursor: "pointer",
-            color: theme.colors.text,
-          }}
-        >
-          {mode === "light" ? "Dark" : "Light"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: theme.spacing.sm }}>
+          <GlobalSearch />
+          {user && <NotificationBell />}
+          <button
+            onClick={toggleMode}
+            style={{
+              padding: "4px 12px",
+              fontSize: "0.85rem",
+              background: "none",
+              border: `1px solid ${theme.colors.border}`,
+              borderRadius: theme.borderRadius,
+              cursor: "pointer",
+              color: theme.colors.text,
+            }}
+          >
+            {mode === "light" ? "Dark" : "Light"}
+          </button>
+          {user && (
+            <>
+              <span style={{ fontSize: "0.85rem", color: theme.colors.textMuted }}>
+                {user.display_name}
+              </span>
+              <button
+                onClick={logout}
+                style={{
+                  padding: "4px 12px",
+                  fontSize: "0.85rem",
+                  background: "none",
+                  border: `1px solid ${theme.colors.border}`,
+                  borderRadius: theme.borderRadius,
+                  cursor: "pointer",
+                  color: theme.colors.text,
+                }}
+              >
+                Logout
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
       {/* Body: sidebar + main */}

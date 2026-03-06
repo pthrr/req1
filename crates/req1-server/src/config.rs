@@ -9,6 +9,8 @@ pub struct Config {
     pub cors_origin: Option<String>,
     pub static_dir: Option<String>,
     pub build_sha: Option<String>,
+    pub jwt_secret: String,
+    pub jwt_expiration_hours: u64,
 }
 
 impl Config {
@@ -26,6 +28,12 @@ impl Config {
             cors_origin: env::var("CORS_ORIGIN").ok(),
             static_dir: env::var("STATIC_DIR").ok(),
             build_sha: env::var("BUILD_SHA").ok(),
+            jwt_secret: env::var("JWT_SECRET")
+                .unwrap_or_else(|_| "dev-secret-change-in-production".to_string()),
+            jwt_expiration_hours: env::var("JWT_EXPIRATION_HOURS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(24),
         }
     }
 }

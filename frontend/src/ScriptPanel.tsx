@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Script } from "./api/client";
+import { api, type Script, type ScriptExecution } from "./api/client";
 import { theme } from "./theme";
 
 interface Props {
@@ -20,10 +20,16 @@ export function ScriptPanel({ moduleId }: Props) {
   const [newType, setNewType] = useState<string>("trigger");
   const [newHook, setNewHook] = useState<string>("pre_save");
   const [newSource, setNewSource] = useState("");
+  const [newPriority, setNewPriority] = useState(100);
 
   // Edit state
   const [editSource, setEditSource] = useState("");
   const [editName, setEditName] = useState("");
+  const [editPriority, setEditPriority] = useState(100);
+  const [editCron, setEditCron] = useState("");
+
+  // Execution history
+  const [executions, setExecutions] = useState<ScriptExecution[]>([]);
 
   const fetchScripts = useCallback(async () => {
     try {
@@ -43,8 +49,18 @@ export function ScriptPanel({ moduleId }: Props) {
     if (selected) {
       setEditSource(selected.source_code);
       setEditName(selected.name);
+      setEditPriority(selected.priority);
+      setEditCron(selected.cron_expression ?? "");
+      // Fetch executions for action scripts
+      if (selected.script_type === "action") {
+        api.listScriptExecutions(moduleId, selected.id)
+          .then((data) => setExecutions(data.items))
+          .catch(() => setExecutions([]));
+      } else {
+        setExecutions([]);
+      }
     }
-  }, [selected]);
+  }, [selected, moduleId]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +71,7 @@ export function ScriptPanel({ moduleId }: Props) {
         script_type: newType,
         hook_point: newType === "trigger" ? newHook : undefined,
         source_code: newSource,
+        priority: newPriority,
       });
       setNewName("");
       setNewSource("");
@@ -70,6 +87,8 @@ export function ScriptPanel({ moduleId }: Props) {
       const updated = await api.updateScript(moduleId, selected.id, {
         name: editName,
         source_code: editSource,
+        priority: editPriority,
+        ...(selected.script_type === "action" && editCron ? { cron_expression: editCron } : {}),
       });
       setSelected(updated);
       fetchScripts();
@@ -220,6 +239,7 @@ export function ScriptPanel({ moduleId }: Props) {
                 >
                   {s.script_type}
                   {s.hook_point ? ` (${s.hook_point})` : ""}
+                  {" | P:" + s.priority}
                 </div>
               </div>
               <button
@@ -275,6 +295,13 @@ export function ScriptPanel({ moduleId }: Props) {
                 ))}
               </select>
             )}
+            <input
+              type="number"
+              value={newPriority}
+              onChange={(e) => setNewPriority(Number(e.target.value))}
+              placeholder="Priority (default 100)"
+              style={{ padding: theme.spacing.sm }}
+            />
             <textarea
               value={newSource}
               onChange={(e) => setNewSource(e.target.value)}
@@ -340,6 +367,13 @@ export function ScriptPanel({ moduleId }: Props) {
                 />
                 Enabled
               </label>
+              <input
+                type="number"
+                value={editPriority}
+                onChange={(e) => setEditPriority(Number(e.target.value))}
+                title="Priority (lower = runs first)"
+                style={{ padding: theme.spacing.sm, width: 70 }}
+              />
             </div>
 
             <textarea
@@ -355,6 +389,29 @@ export function ScriptPanel({ moduleId }: Props) {
                 resize: "vertical",
               }}
             />
+
+            {selected.script_type === "action" && (
+              <div style={{ marginTop: theme.spacing.sm, display: "flex", alignItems: "center", gap: theme.spacing.sm }}>
+                <label style={{ fontSize: "0.85rem", whiteSpace: "nowrap" }}>CRON:</label>
+                <input
+                  type="text"
+                  value={editCron}
+                  onChange={(e) => setEditCron(e.target.value)}
+                  placeholder="e.g. 0 0 * * * * (sec min hour dom mon dow)"
+                  style={{ padding: theme.spacing.sm, flex: 1, fontFamily: "monospace", fontSize: "0.85rem" }}
+                />
+                {selected.last_run_at && (
+                  <span style={{ fontSize: "0.75rem", color: theme.colors.tabInactive }}>
+                    Last: {new Date(selected.last_run_at).toLocaleString()}
+                  </span>
+                )}
+                {selected.next_run_at && (
+                  <span style={{ fontSize: "0.75rem", color: theme.colors.tabInactive }}>
+                    Next: {new Date(selected.next_run_at).toLocaleString()}
+                  </span>
+                )}
+              </div>
+            )}
 
             <div
               style={{
@@ -394,6 +451,45 @@ export function ScriptPanel({ moduleId }: Props) {
               >
                 {testOutput}
               </pre>
+            )}
+
+            {selected.script_type === "action" && executions.length > 0 && (
+              <div style={{ marginTop: theme.spacing.lg }}>
+                <h4 style={{ marginBottom: theme.spacing.sm }}>Execution History</h4>
+                <div style={{ border: `1px solid ${theme.colors.borderLight}`, borderRadius: 4, maxHeight: 200, overflowY: "auto" }}>
+                  <table style={{ width: "100%", fontSize: "0.8rem", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ background: theme.colors.bgHover }}>
+                        <th style={{ padding: 4, textAlign: "left" }}>Status</th>
+                        <th style={{ padding: 4, textAlign: "left" }}>Started</th>
+                        <th style={{ padding: 4, textAlign: "left" }}>Duration</th>
+                        <th style={{ padding: 4, textAlign: "left" }}>Error</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {executions.map((ex) => (
+                        <tr key={ex.id} style={{ borderTop: `1px solid ${theme.colors.borderLight}` }}>
+                          <td style={{ padding: 4 }}>
+                            <span style={{
+                              padding: "2px 6px",
+                              borderRadius: 3,
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              background: ex.status === "success" ? "#d4edda" : ex.status === "error" ? "#f8d7da" : "#fff3cd",
+                              color: ex.status === "success" ? "#155724" : ex.status === "error" ? "#721c24" : "#856404",
+                            }}>
+                              {ex.status}
+                            </span>
+                          </td>
+                          <td style={{ padding: 4 }}>{new Date(ex.started_at).toLocaleString()}</td>
+                          <td style={{ padding: 4 }}>{ex.duration_ms != null ? `${ex.duration_ms}ms` : "-"}</td>
+                          <td style={{ padding: 4, color: theme.colors.error }}>{ex.error_message ?? "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
           </div>
         ) : (

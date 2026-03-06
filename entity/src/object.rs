@@ -23,6 +23,12 @@ pub struct Model {
     #[sea_orm(column_name = "references_", column_type = "JsonBinary")]
     pub references_: serde_json::Value,
     pub object_type_id: Option<Uuid>,
+    pub lifecycle_state: Option<String>,
+    pub lifecycle_model_id: Option<Uuid>,
+    pub source_object_id: Option<Uuid>,
+    pub source_module_id: Option<Uuid>,
+    pub is_placeholder: bool,
+    pub docx_source_id: Option<String>,
     pub deleted_at: Option<DateTimeWithTimeZone>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,

@@ -142,6 +142,24 @@ impl BaselineService {
         })
     }
 
+    pub async fn list_all(
+        db: &impl ConnectionTrait,
+        offset: u64,
+        limit: u64,
+    ) -> Result<PaginatedResponse<baseline::Model>, CoreError> {
+        let paginator = baseline::Entity::find().paginate(db, limit);
+        let total = paginator.num_items().await?;
+        let page = offset / limit;
+        let items = paginator.fetch_page(page).await?;
+
+        Ok(PaginatedResponse {
+            items,
+            total,
+            offset,
+            limit,
+        })
+    }
+
     pub async fn diff(
         db: &impl ConnectionTrait,
         input: DiffBaselineInput,

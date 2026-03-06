@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+pub mod auth;
 pub mod baseline;
 pub mod error;
 pub mod fingerprint;

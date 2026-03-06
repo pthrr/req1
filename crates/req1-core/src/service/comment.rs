@@ -8,6 +8,7 @@ use entity::comment;
 
 use crate::PaginatedResponse;
 use crate::error::CoreError;
+use crate::service::mention::MentionService;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateCommentInput {
@@ -33,17 +34,36 @@ impl CommentService {
         let now = chrono::Utc::now().fixed_offset();
         let id = Uuid::now_v7();
 
+        let mentioned_ids = MentionService::parse_mentions(db, &input.body).await?;
+        let mentioned_json = serde_json::json!(mentioned_ids);
+
+        let body_text = input.body.clone();
+        let author = input.author_id;
         let model = comment::ActiveModel {
             id: Set(id),
             object_id: Set(input.object_id),
-            author_id: Set(input.author_id),
+            author_id: Set(author),
             body: Set(input.body),
+            mentioned_user_ids: Set(mentioned_json),
             resolved: Set(false),
             created_at: Set(now),
             updated_at: Set(now),
         };
 
         let result = model.insert(db).await?;
+
+        if !mentioned_ids.is_empty() {
+            MentionService::notify_mentioned(
+                db,
+                &mentioned_ids,
+                author,
+                "comment",
+                id,
+                &body_text,
+            )
+            .await?;
+        }
+
         Ok(result)
     }
 

@@ -1,8 +1,9 @@
 use axum::{
-    Json, Router,
+    Extension, Json, Router,
     extract::{Path, Query, State},
     routing::{get, post},
 };
+use req1_core::auth::AuthUser;
 use sea_orm::{
     ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait,
 };
@@ -13,12 +14,15 @@ use entity::object_history;
 use req1_core::{
     PaginatedResponse, Pagination,
     service::object::{
-        CreateObjectInput, ListObjectsFilter, MoveObjectInput, ObjectService, UpdateObjectInput,
+        CreateObjectInput, GlobalSearchResult, ListObjectsFilter, MoveObjectInput, ObjectService,
+        UpdateObjectInput,
     },
 };
+use serde::Deserialize;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
+        .route("/search", get(search_global))
         .route(
             "/modules/{module_id}/objects",
             get(list_objects).post(create_object),
@@ -35,6 +39,18 @@ pub fn routes() -> Router<AppState> {
             "/modules/{module_id}/objects/{id}/history",
             get(list_object_history),
         )
+        .route(
+            "/modules/{module_id}/objects/{id}/sync",
+            post(sync_placeholder),
+        )
+        .route(
+            "/modules/{module_id}/objects/{id}/break-link",
+            post(break_placeholder_link),
+        )
+        .route(
+            "/modules/{module_id}/sync-placeholders",
+            post(sync_all_placeholders),
+        )
 }
 
 async fn list_objects(
@@ -49,6 +65,7 @@ async fn list_objects(
 async fn create_object(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
+    Extension(_auth_user): Extension<AuthUser>,
     Json(body): Json<CreateObjectInput>,
 ) -> Result<(axum::http::StatusCode, Json<entity::object::Model>), AppError> {
     let txn = state.db.begin().await?;
@@ -120,4 +137,61 @@ async fn list_object_history(
         offset: pagination.offset,
         limit: pagination.limit,
     }))
+}
+
+const fn default_search_limit() -> u64 {
+    50
+}
+
+#[derive(Debug, Deserialize)]
+struct SearchQuery {
+    q: String,
+    #[serde(default = "default_search_limit")]
+    limit: u64,
+}
+
+#[derive(serde::Serialize)]
+struct SearchResponse {
+    items: Vec<GlobalSearchResult>,
+}
+
+async fn search_global(
+    State(state): State<AppState>,
+    Query(query): Query<SearchQuery>,
+) -> Result<Json<SearchResponse>, AppError> {
+    let results = ObjectService::search_global(&state.db, &query.q, query.limit).await?;
+    Ok(Json(SearchResponse { items: results }))
+}
+
+async fn sync_placeholder(
+    State(state): State<AppState>,
+    Path((_module_id, id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<entity::object::Model>, AppError> {
+    let txn = state.db.begin().await?;
+    let result = ObjectService::sync_placeholder(&txn, id).await?;
+    txn.commit().await?;
+    Ok(Json(result))
+}
+
+async fn break_placeholder_link(
+    State(state): State<AppState>,
+    Path((_module_id, id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<entity::object::Model>, AppError> {
+    let result = ObjectService::break_placeholder_link(&state.db, id).await?;
+    Ok(Json(result))
+}
+
+#[derive(serde::Serialize)]
+struct SyncAllResponse {
+    synced: u64,
+}
+
+async fn sync_all_placeholders(
+    State(state): State<AppState>,
+    Path(module_id): Path<Uuid>,
+) -> Result<Json<SyncAllResponse>, AppError> {
+    let txn = state.db.begin().await?;
+    let synced = ObjectService::sync_all_placeholders(&txn, module_id).await?;
+    txn.commit().await?;
+    Ok(Json(SyncAllResponse { synced }))
 }

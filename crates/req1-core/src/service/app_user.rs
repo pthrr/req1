@@ -60,6 +60,7 @@ impl AppUserService {
             id: Set(id),
             email: Set(input.email),
             display_name: Set(input.display_name),
+            password_hash: Set(None),
             role: Set(role),
             active: Set(input.active.unwrap_or(true)),
             created_at: Set(now),

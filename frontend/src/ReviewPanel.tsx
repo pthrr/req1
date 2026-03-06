@@ -2,10 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import {
   api,
   type AppUser,
+  type Module,
   type ReviewAssignment,
+  type ReviewComment,
   type ReviewPackage,
 } from "./api/client";
 import { ReviewDashboard } from "./ReviewDashboard";
+import { MentionTextarea, renderMentionText } from "./MentionTextarea";
+import { ESignatureModal } from "./ESignatureModal";
+import { SignatureAuditTrail } from "./SignatureAuditTrail";
 import { theme } from "./theme";
 
 interface Props {
@@ -36,9 +41,13 @@ export function ReviewPanel({ moduleId }: Props) {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [expandedPkg, setExpandedPkg] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<Record<string, ReviewAssignment[]>>({});
+  const [comments, setComments] = useState<Record<string, ReviewComment[]>>({});
+  const [newCommentBody, setNewCommentBody] = useState("");
   const [newPkgName, setNewPkgName] = useState("");
   const [newPkgDesc, setNewPkgDesc] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [mod, setMod] = useState<Module | null>(null);
+  const [sigModal, setSigModal] = useState<{ pkg: ReviewPackage; status: string } | null>(null);
 
   const fetchPackages = useCallback(async () => {
     try {
@@ -59,15 +68,34 @@ export function ReviewPanel({ moduleId }: Props) {
     }
   }, []);
 
+  const fetchModule = useCallback(async () => {
+    try {
+      const data = await api.getModule(moduleId);
+      setMod(data);
+    } catch {
+      // Non-critical
+    }
+  }, [moduleId]);
+
   useEffect(() => {
     fetchPackages();
     fetchUsers();
-  }, [fetchPackages, fetchUsers]);
+    fetchModule();
+  }, [fetchPackages, fetchUsers, fetchModule]);
 
   const fetchAssignments = useCallback(async (packageId: string) => {
     try {
       const data = await api.listReviewAssignments(packageId);
       setAssignments((prev) => ({ ...prev, [packageId]: data.items }));
+    } catch {
+      // Non-critical
+    }
+  }, []);
+
+  const fetchComments = useCallback(async (packageId: string) => {
+    try {
+      const data = await api.listReviewComments(packageId);
+      setComments((prev) => ({ ...prev, [packageId]: data.items }));
     } catch {
       // Non-critical
     }
@@ -79,6 +107,7 @@ export function ReviewPanel({ moduleId }: Props) {
     } else {
       setExpandedPkg(pkgId);
       if (!assignments[pkgId]) fetchAssignments(pkgId);
+      if (!comments[pkgId]) fetchComments(pkgId);
     }
   };
 
@@ -109,11 +138,34 @@ export function ReviewPanel({ moduleId }: Props) {
   };
 
   const handleStatusTransition = async (pkg: ReviewPackage, newStatus: string) => {
+    // Check if signature is required
+    const transitions = mod?.signature_config?.require_signature_transitions ?? [];
+    const transitionKey = `${pkg.status}->${newStatus}`;
+    if (transitions.includes(transitionKey)) {
+      setSigModal({ pkg, status: newStatus });
+      return;
+    }
     try {
-      await api.updateReviewPackage(moduleId, pkg.id, { status: newStatus });
+      await api.transitionReviewPackage(moduleId, pkg.id, { status: newStatus });
       fetchPackages();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update status");
+    }
+  };
+
+  const handleSignedTransition = async (password: string, meaning: string) => {
+    if (!sigModal) return;
+    try {
+      await api.transitionReviewPackage(moduleId, sigModal.pkg.id, {
+        status: sigModal.status,
+        password,
+        meaning,
+      });
+      setSigModal(null);
+      fetchPackages();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to transition with signature");
+      setSigModal(null);
     }
   };
 
@@ -288,12 +340,26 @@ export function ReviewPanel({ moduleId }: Props) {
                           <td style={{ padding: "4px", borderBottom: `1px solid ${theme.colors.borderLight}` }}>
                             <div style={{ display: "flex", gap: 4 }}>
                               {a.status === "pending" && (
-                                <button
-                                  onClick={() => handleUpdateAssignment(pkg.id, a.id, { status: "approved" })}
-                                  style={{ padding: "2px 6px", fontSize: "0.75rem" }}
-                                >
-                                  Approve
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => handleUpdateAssignment(pkg.id, a.id, { status: "approved" })}
+                                    style={{ padding: "2px 6px", fontSize: "0.75rem", color: theme.colors.success }}
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => handleUpdateAssignment(pkg.id, a.id, { status: "rejected" })}
+                                    style={{ padding: "2px 6px", fontSize: "0.75rem", color: theme.colors.error }}
+                                  >
+                                    Reject
+                                  </button>
+                                  <button
+                                    onClick={() => handleUpdateAssignment(pkg.id, a.id, { status: "abstained" })}
+                                    style={{ padding: "2px 6px", fontSize: "0.75rem" }}
+                                  >
+                                    Abstain
+                                  </button>
+                                </>
                               )}
                               <button
                                 onClick={() => handleDeleteAssignment(pkg.id, a.id)}
@@ -333,11 +399,70 @@ export function ReviewPanel({ moduleId }: Props) {
                     ))}
                   </select>
                 </div>
+
+                {/* Discussion chat */}
+                <div style={{ marginTop: theme.spacing.md, borderTop: `1px solid ${theme.colors.borderLight}`, paddingTop: theme.spacing.sm }}>
+                  <h5 style={{ margin: `0 0 ${theme.spacing.sm}` }}>Discussion</h5>
+                  <div style={{ maxHeight: 200, overflowY: "auto", marginBottom: theme.spacing.sm }}>
+                    {(comments[pkg.id] ?? []).map((c) => {
+                      const author = users.find((u) => u.id === c.author_id);
+                      return (
+                        <div key={c.id} style={{ marginBottom: theme.spacing.sm, fontSize: "0.85rem" }}>
+                          <div style={{ display: "flex", gap: theme.spacing.sm, alignItems: "baseline" }}>
+                            <span style={{ fontWeight: 600 }}>{author?.display_name ?? "Anonymous"}</span>
+                            <span style={{ fontSize: "0.75rem", color: theme.colors.textMuted }}>
+                              {new Date(c.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <div>{renderMentionText(c.body, users)}</div>
+                        </div>
+                      );
+                    })}
+                    {(comments[pkg.id] ?? []).length === 0 && (
+                      <div style={{ color: theme.colors.textMuted, fontSize: "0.85rem" }}>No messages yet.</div>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: theme.spacing.sm }}>
+                    <MentionTextarea
+                      value={expandedPkg === pkg.id ? newCommentBody : ""}
+                      onChange={(v) => setNewCommentBody(v)}
+                      users={users}
+                      placeholder="Type a message... (use @ to mention)"
+                      rows={2}
+                      style={{ fontSize: "0.85rem" }}
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newCommentBody.trim()) return;
+                        api.createReviewComment(pkg.id, { body: newCommentBody.trim() })
+                          .then(() => { setNewCommentBody(""); fetchComments(pkg.id); })
+                          .catch((err) => setError(err instanceof Error ? err.message : "Failed to send"));
+                      }}
+                      style={{ padding: "4px 12px", fontSize: "0.85rem", alignSelf: "flex-end" }}
+                    >
+                      Send
+                    </button>
+                  </div>
+                </div>
+
+                <SignatureAuditTrail
+                  entityType="review_package"
+                  entityId={pkg.id}
+                  users={users}
+                />
               </div>
             )}
           </div>
         );
       })}
+
+      {sigModal && (
+        <ESignatureModal
+          transitionLabel={`${sigModal.pkg.status} -> ${sigModal.status}`}
+          onSign={handleSignedTransition}
+          onCancel={() => setSigModal(null)}
+        />
+      )}
 
       {packages.length === 0 && (
         <div style={{ padding: theme.spacing.md, textAlign: "center", color: theme.colors.textMuted }}>

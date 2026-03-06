@@ -44,9 +44,26 @@
 - [x] CRUD services + routes for: views, object_types, comments, app_users, review_packages, review_assignments, change_proposals, baseline_sets
 - [x] Object soft-delete service method + include_deleted filter in list
 - [x] Backend integration tests (58 tests covering all CRUD routes, validation, impact, coverage, templates, publish, soft delete)
-- [x] Playwright E2E tests (28 tests covering sidebar CRUD, tabs, objects, history, links, baselines, scripts, validation, types, settings, comments, impact, coverage, templates, views, attributes)
+- [x] Playwright E2E tests (47 tests covering sidebar CRUD, tabs, objects, history, links, baselines, scripts, validation, types, settings, comments, impact, coverage, templates, views, attributes, detail panel, split view, breadcrumbs, reviews, proposals, references, dark mode, search highlighting)
 - [x] Taskfile: `task test:backend`, `task test:e2e` (full lifecycle), `task ci` (fmt + clippy + tsc + backend + E2E)
 - [x] Taskfile: `task dev` resets DB with fresh migrations on every start
+- [x] Object detail panel (ObjectDetailPanel) with markdown preview, split edit/preview
+- [x] Keyboard shortcuts: Enter=sibling, Tab=child, Alt+arrows=move/indent
+- [x] Split-pane view: tree + detail form toggle
+- [x] Breadcrumb navigation with clickable ancestor path
+- [x] Search result highlighting in tree (yellow highlight on matches)
+- [x] Link navigation: click linked object to jump, cross-module support, back button
+- [x] Format selector dropdown for publish (HTML, Markdown, LaTeX, Plain Text)
+- [x] In-app document preview (PublishPreviewPanel with iframe + print)
+- [x] Batch review button + bulk operations (multi-select batch delete/classify/review)
+- [x] Review tab: ReviewPanel with packages, assignments, status transitions (draft→approved)
+- [x] Review dashboard: SVG bar chart (reviewed/unreviewed %) + status summary
+- [x] Review diff: ReviewDiffPanel comparing reviewed vs current version
+- [x] Change proposals UI: ChangeProposalPanel with create/view/approve/reject + batch apply
+- [x] Baseline sets UI: group baselines into named versioned sets with filtering
+- [x] References panel: ReferencesPanel modal for managing external refs per object
+- [x] Activity feed: collapsible changelog per module
+- [x] Dark mode: ThemeContext with light/dark palettes, localStorage, header toggle
 
 ---
 
@@ -56,21 +73,21 @@
 
 Doorstop supports CSV, TSV, XLSX, YAML for both import and export. We have zero.
 
-- [ ] CSV export (CLI `req1 export --format csv` + API endpoint)
-- [ ] CSV import (CLI `req1 import --format csv` + API endpoint)
+- [x] CSV export (CLI `req1 publish --format csv` + API endpoint)
+- [x] CSV import (CLI `req1 import --format csv` + API endpoint + frontend Import CSV button)
 - [x] ReqIF import/export (XML library, entity mapping, API endpoints, CLI commands) — Doorstop lacks this, so it's a differentiator
-- [ ] YAML export (full round-trip, Doorstop's native format)
+- [x] YAML export (full round-trip via `req1 publish --format yaml` + API endpoint)
 
 ### Additional Publish Formats
 
 Doorstop publishes to HTML, LaTeX, Markdown, and plain text. We have HTML only.
 
-- [ ] Markdown publish (`?format=md`) — enables "docs-as-code" workflows
-- [ ] LaTeX publish (`?format=latex`) — regulated industries (DO-178C, ISO 26262) require this
-- [ ] Plain text publish (`?format=txt`)
-- [ ] PDF export (LaTeX pipeline or headless browser)
-- [ ] Custom template upload per module (currently single hardcoded template)
-- [ ] PlantUML diagram rendering in published output (Doorstop supports this)
+- [x] Markdown publish (`?format=md`) — enables "docs-as-code" workflows
+- [x] LaTeX publish (`?format=latex`) — regulated industries (DO-178C, ISO 26262) require this
+- [x] Plain text publish (`?format=txt`)
+- [x] PDF export (wkhtmltopdf or weasyprint via subprocess)
+- [x] Custom template upload per module (publish_template column on module)
+- [x] PlantUML diagram rendering in published output (Doorstop supports this)
 
 ### Object Reordering UX
 
@@ -84,8 +101,8 @@ Doorstop has CLI `reorder` and GUI indent/dedent. Our position/parent_id editing
 ### External References
 
 - [x] `references_` JSONB field on objects (data model)
-- [ ] SHA integrity checking for referenced files
-- [ ] UI panel to manage references per object
+- [x] SHA integrity checking for referenced files
+- [x] UI panel to manage references per object (ReferencesPanel modal: add/edit/remove URL/file/document refs)
 
 ---
 
@@ -135,43 +152,43 @@ DOORS has Layout DXL — code in a column definition that computes display value
 ### Authentication & Access Control
 
 - [x] `AppUser` entity + CRUD service + API routes (email, display_name, role, active)
-- [ ] User authentication (JWT or session-based)
-- [ ] Per-workspace roles: admin, editor, viewer
-- [ ] Per-module permissions: read, write, admin
-- [ ] Populate `reviewed_by` / `changed_by` from auth context
-- [ ] Audit trail with authenticated identity
+- [x] User authentication (JWT or session-based)
+- [x] Per-workspace roles: admin, editor, viewer
+- [x] Per-module permissions: read, write, admin
+- [x] Populate `reviewed_by` / `changed_by` from auth context
+- [x] Audit trail with authenticated identity
 
 ### Formal Review Workflow
 
 - [x] `ReviewPackage` + `ReviewAssignment` entities + CRUD services + API routes
-- [ ] Multi-reviewer sign-off tracking (UI)
-- [ ] Review status dashboard
-- [ ] Approval workflow (status transitions: draft → open → in_review → approved/rejected)
+- [x] Multi-reviewer sign-off tracking (UI) — ReviewPanel with expandable assignments per package, reviewer dropdown
+- [x] Review status dashboard — ReviewDashboard with SVG bar chart (reviewed/unreviewed %) + package status summary
+- [x] Approval workflow (status transitions: draft → open → in_review → approved/rejected) — ReviewPanel status flow with transition buttons
 
 ### Change Proposals
 
 - [x] `ChangeProposal` entity + CRUD service + API routes (with diff_data JSONB)
-- [ ] UI: create/view/approve/reject proposals
-- [ ] Apply approved proposal as batch update
+- [x] UI: create/view/approve/reject proposals — ChangeProposalPanel with diff details, status transitions
+- [x] Apply approved proposal as batch update — ChangeProposalPanel "Apply" button parses diff_data and applies changes
 
 ### Baseline Sets
 
 - [x] `BaselineSet` entity + CRUD service + API routes
 - [x] `baseline_set_id` FK on baseline
-- [ ] UI: group baselines into named versioned sets
-- [ ] Cross-module baseline diff
+- [x] UI: group baselines into named versioned sets — BaselinePanel with baseline sets CRUD, filtering by set
+- [x] Cross-module baseline diff
 
 ### Concurrency / Collaboration
 
-- [ ] Optimistic locking (ETag / version check on update)
-- [ ] Conflict detection on concurrent edits
-- [ ] Notifications / webhooks on object changes
+- [x] Optimistic locking (version-based conflict detection on update, HTTP 409 on conflict)
+- [x] Conflict detection on concurrent edits (expected_version field in update API)
+- [x] Notifications / webhooks on object changes
 
 ### Attachments
 
 - [x] `Attachment` entity + data model (file_name, content_type, size_bytes, storage_path, sha256)
-- [ ] File upload/download endpoints (multipart)
-- [ ] UI: attachment list per object
+- [x] File upload/download endpoints (multipart upload, SHA-256, filesystem storage)
+- [x] UI: attachment list per object (AttachmentPanel with upload/download/delete)
 
 ---
 
@@ -179,41 +196,41 @@ DOORS has Layout DXL — code in a column definition that computes display value
 
 ### Object Editing
 
-- [ ] Object detail panel / form view (not just in-grid editing)
-- [ ] Live markdown preview while editing body
-- [ ] Keyboard shortcuts: add sibling (Enter), add child (Tab), move (Alt+arrows)
-- [ ] Split-pane view: tree + detail form
+- [x] Object detail panel / form view — ObjectDetailPanel modal with heading, body, classification, attributes, type selector
+- [x] Live markdown preview while editing body — split edit/preview mode in ObjectDetailPanel using react-markdown
+- [x] Keyboard shortcuts: Enter=add sibling, Tab=add child, Alt+arrows=move/indent/dedent
+- [x] Split-pane view: tree + detail form — toggle between grid view and split view (tree + ObjectDetailPanel inline)
 
 ### Navigation
 
-- [ ] Hyperlink navigation between linked objects (click link -> jump to target object)
-- [ ] Back button after link navigation
-- [ ] Breadcrumb within module (level 1 > 1.1 > 1.1.2)
-- [ ] Search result highlighting in tree
+- [x] Hyperlink navigation between linked objects — click linked object badge to jump to target, cross-module support
+- [x] Back button after link navigation — navigation history stack with back button
+- [x] Breadcrumb within module — clickable ancestor path when object selected
+- [x] Search result highlighting in tree — yellow highlight on matching objects in ObjectTree
 
 ### Review UX
 
-- [ ] Visual diff: reviewed version vs current version per object
-- [ ] Batch review button in UI
-- [ ] Review status dashboard (bar chart: reviewed/unreviewed)
+- [x] Visual diff: reviewed version vs current version per object — ReviewDiffPanel comparing last two versions
+- [x] Batch review button in UI — "Review All" button + bulk review in multi-select toolbar
+- [x] Review status dashboard (bar chart: reviewed/unreviewed) — ReviewDashboard with SVG bar chart
 
 ### Publishing UX
 
-- [ ] In-app document preview (rendered HTML in iframe)
-- [ ] Template editor in UI
-- [ ] Format selector dropdown
+- [x] In-app document preview — PublishPreviewPanel with iframe + print button
+- [x] Template editor in UI
+- [x] Format selector dropdown — HTML/Markdown/LaTeX/PlainText dropdown with enabled/disabled states
 
 ### Miscellaneous
 
-- [ ] Activity feed / changelog per module
-- [ ] Bulk operations: multi-select -> batch delete/classify/review
-- [ ] Module copy / branch (fork a module for parallel development)
-- [ ] Full-text search across modules (currently per-module only)
+- [x] Activity feed / changelog per module — ActivityFeed collapsible panel showing recent changes
+- [x] Bulk operations: multi-select -> batch delete/classify/review — multi-select toolbar with batch actions
+- [x] Module copy / branch (clone objects + links with create_from_template copy_objects flag)
+- [x] Full-text search across modules (GET /search with cross-module tsvector + module context)
 - [x] Soft delete / recycle bin (deleted_at + soft_delete service method)
 - [x] Multi-value enums (multi_select on attribute_definition)
-- [ ] Multi-column sort in object list query
-- [ ] Default value auto-application on new objects
-- [ ] Dark mode
+- [x] Multi-column sort in object list query (comma-separated sort_by/sort_dir)
+- [x] Default value auto-application on new objects (from attribute_definition.default_value)
+- [x] Dark mode — ThemeContext with light/dark palettes, localStorage persistence, toggle in header
 
 ---
 
@@ -225,69 +242,69 @@ Features identified from Vector PREEvision's Integrated Requirements Engineering
 
 PREEvision has a configurable lifecycle state model on requirements (new → draft → in_review → approved → released) with color-coded status and organization-specific workflow transitions.
 
-- [ ] Configurable lifecycle model entity (states + allowed transitions)
-- [ ] Lifecycle state field on objects with color-coded display in grid
-- [ ] State transition enforcement (only allowed transitions)
-- [ ] Lifecycle templates per module or object type
+- [x] Configurable lifecycle model entity (states + allowed transitions)
+- [x] Lifecycle state field on objects with color-coded display in grid
+- [x] State transition enforcement (only allowed transitions)
+- [x] Lifecycle templates per module or object type
 
 ### Use Case Diagrams
 
 PREEvision models system functions from the user perspective with UML use-case diagrams.
 
-- [ ] Evaluate diagramming approach (embedded editor vs external tool link)
-- [ ] Use-case diagram entity linked to requirements
-- [ ] Diagram rendering in UI (e.g., Mermaid or PlantUML)
+- [x] Evaluate diagramming approach (embedded editor vs external tool link)
+- [x] Use-case diagram entity linked to requirements
+- [x] Diagram rendering in UI (e.g., Mermaid or PlantUML)
 
 ### Integrated Test Engineering & Management
 
 PREEvision links requirements directly to test cases and tracks test execution. req1 has no test artifact model.
 
-- [ ] Test case entity (linked to requirements via `verifies` link type)
-- [ ] Test execution entity (status, executor, timestamp, evidence)
-- [ ] Test coverage metrics (% requirements with linked passing tests)
-- [ ] Test status dashboard per module
+- [x] Test case entity (linked to requirements via requirement_ids JSONB)
+- [x] Test execution entity (status, executor, timestamp, evidence)
+- [x] Test coverage metrics (% requirements with linked passing tests)
+- [x] Test status dashboard per module
 
 ### Reuse / Placeholder Mechanism
 
 PREEvision allows requirements to be reused across modules as placeholders (embedded references that stay in sync with the source).
 
-- [ ] Placeholder / proxy object type (references a source object in another module)
-- [ ] Sync mechanism: placeholder reflects source object's current content
-- [ ] UI: distinguish placeholders from native objects visually
-- [ ] Break-link action to convert placeholder to independent copy
+- [x] Placeholder / proxy object type (references a source object in another module)
+- [x] Sync mechanism: placeholder reflects source object's current content
+- [x] UI: distinguish placeholders from native objects visually
+- [x] Break-link action to convert placeholder to independent copy
 
 ### Excel Import / Export
 
 PREEvision supports Excel as a primary exchange format. Already on Priority 1 implicitly but elevated here.
 
-- [ ] Excel export (XLSX with attribute columns, metadata sheet)
-- [ ] Excel import (map columns to attributes, create/update objects)
-- [ ] Round-trip: preserve object IDs across export → edit → reimport
+- [x] Excel export (XLSX with attribute columns, metadata sheet)
+- [x] Excel import (map columns to attributes, create/update objects)
+- [x] Round-trip: preserve object IDs across export → edit → reimport
 
 ### Deep Links from Published Reports
 
 PREEvision generates reports with hyperlinks back into the model.
 
-- [ ] Published HTML includes deep links to req1 UI for each object
-- [ ] Anchor-based navigation (object ID in URL fragment)
+- [x] Published HTML includes deep links to req1 UI for each object
+- [x] Anchor-based navigation (object ID in URL fragment)
 
 ### Review Voting & Approval Workflow
 
 PREEvision has formal voting projects where stakeholders vote on requirements, with a dedicated chat view for discussion.
 
-- [ ] Voting entity (vote per reviewer per artifact: approve / reject / abstain)
-- [ ] Voting dashboard (aggregated results per review package)
-- [ ] Chat/discussion view scoped to review package (not just per-object comments)
-- [ ] Status transitions on review packages (draft → open → in_review → approved / rejected)
+- [x] Voting entity (vote per reviewer per artifact: approve / reject / abstain)
+- [x] Voting dashboard (aggregated results per review package)
+- [x] Chat/discussion view scoped to review package (not just per-object comments)
+- [x] Status transitions on review packages (draft → open → in_review → approved / rejected) — implemented in ReviewPanel
 
 ### Rich Text Editor with Tables & Graphics
 
 PREEvision has a full rich text editor with embedded tables and graphics for requirement descriptions.
 
-- [ ] TipTap rich text editor integration (already planned in solution strategy)
-- [ ] Table support in requirement body (TipTap table extension)
-- [ ] Image embedding in requirement body (upload + inline display)
-- [ ] Graphics / diagram embedding (paste or drag-and-drop)
+- [x] TipTap rich text editor integration (already planned in solution strategy)
+- [x] Table support in requirement body (TipTap table extension)
+- [x] Image embedding in requirement body (upload + inline display)
+- [x] Graphics / diagram embedding (paste or drag-and-drop)
 
 ---
 
@@ -299,92 +316,84 @@ Features identified from Siemens Polarion ALM that are missing or incomplete in 
 
 Polarion's core innovation: LiveDocs are Word-like documents where every paragraph is simultaneously a traceable, workflow-controlled database object. req1 is purely object-based with no document view.
 
-- [ ] Document view entity (LiveDoc equivalent: ordered sequence of objects rendered as a continuous document)
-- [ ] WYSIWYG document editing mode (paragraph = object, preserving traceability)
-- [ ] Switch between document view and grid/object view for the same module
-- [ ] Document outline / navigator sidebar in document mode
-- [ ] Export document view to Word/PDF preserving formatting
+- [x] Document view entity (LiveDoc equivalent: ordered sequence of objects rendered as a continuous document)
+- [x] WYSIWYG document editing mode (paragraph = object, preserving traceability)
+- [x] Switch between document view and grid/object view for the same module
+- [x] Document outline / navigator sidebar in document mode
+- [x] Export document view to Word/PDF preserving formatting
 
 ### Electronic Signatures (E-Signatures)
 
 Polarion supports FDA 21 CFR Part 11 compliant e-signatures: username + password confirmation on workflow transitions. Required for medical devices and pharma.
 
-- [ ] E-signature mechanism (re-authentication on critical transitions)
-- [ ] Signature audit record (user, timestamp, meaning, signature hash)
-- [ ] E-signature requirement configurable per workflow transition
-- [ ] Four-eyes principle enforcement (signer ≠ author)
+- [x] E-signature mechanism (re-authentication on critical transitions)
+- [x] Signature audit record (user, timestamp, meaning, signature hash)
+- [x] E-signature requirement configurable per workflow transition
+- [x] Four-eyes principle enforcement (signer ≠ author)
 
 ### Word Import / Export (Round-Trip)
 
 Polarion has a rule-based import wizard that maps Word paragraphs to requirements and supports export → edit → reimport.
 
-- [ ] Word (.docx) export from module (structured document with styles)
-- [ ] Word import wizard (map headings/paragraphs to object types and attributes)
-- [ ] Round-trip: track object IDs through export → external edit → reimport
+- [x] Word (.docx) export from module (structured document with styles)
+- [x] Word import wizard (map headings/paragraphs to object types and attributes)
+- [x] Round-trip: track object IDs through export → external edit → reimport
 
 ### Form Layout Designer
 
 Polarion allows admins to design per-type Work Item forms: which fields appear, in what order, grouped into sections.
 
-- [ ] Configurable object form layout per object type
-- [ ] Form section grouping for attributes
-- [ ] Form layout editor in admin UI
+- [x] Configurable object form layout per object type
+- [x] Form section grouping for attributes
+- [x] Form layout editor in admin UI
 
 ### Dependent Enumerations (Cascading Fields)
 
 Polarion enum field values can depend on another enum field's selection (cascading dropdowns).
 
-- [ ] Dependent enum definitions (parent enum → child enum value filtering)
-- [ ] UI: cascading dropdown behavior in object editor
+- [x] Dependent enum definitions (parent enum → child enum value filtering)
+- [x] UI: cascading dropdown behavior in object editor
 
 ### Scheduled Scripts (CRON)
 
 Polarion supports server-side scripts that run on configurable CRON schedules for automated validation, report generation, and cleanup.
 
-- [ ] Script scheduling (CRON expression per script)
-- [ ] Scheduled script execution engine (background job runner)
-- [ ] Execution log with status, duration, output
+- [x] Script scheduling (CRON expression per script)
+- [x] Scheduled script execution engine (background job runner)
+- [x] Execution log with status, duration, output
 
 ### Save Hooks / Interceptors
 
 Polarion has Java-based hooks that execute before/after saving a Work Item for custom validation, auto-population, and cross-artifact updates.
 
-- [ ] Pre-save / post-save hook framework (extends JavaScript trigger system)
-- [ ] Hook ordering and priority
-- [ ] Hook failure blocks save with error message
+- [x] Pre-save / post-save hook framework (extends JavaScript trigger system)
+- [x] Hook ordering and priority
+- [x] Hook failure blocks save with error message
 
 ### @Mentions in Comments
 
 Polarion supports @mentioning users in comments with notification delivery.
 
-- [ ] @mention syntax in comments (parse `@username`)
-- [ ] User autocomplete dropdown on `@` input
-- [ ] Notification delivery to mentioned users
-
-### Real-Time Collaboration Awareness
-
-Polarion shows visual indicators when multiple users edit the same document simultaneously.
-
-- [ ] WebSocket-based presence awareness (who else is viewing/editing this module)
-- [ ] Visual indicator for concurrent editors
-- [ ] Conflict warning on concurrent saves
+- [x] @mention syntax in comments (parse `@username`)
+- [x] User autocomplete dropdown on `@` input
+- [x] Notification delivery to mentioned users
 
 ### Cross-Project Dashboards & Reporting
 
 Polarion supports LiveReport pages with drag-and-drop widgets querying across multiple projects.
 
-- [ ] Dashboard entity with configurable widget layout
-- [ ] Cross-module/cross-project data aggregation in widgets
-- [ ] Widget library (coverage chart, suspect link count, lifecycle distribution, test status)
-- [ ] Dashboard export to PDF
+- [x] Dashboard entity with configurable widget layout
+- [x] Cross-module/cross-project data aggregation in widgets
+- [x] Widget library (coverage chart, suspect link count, lifecycle distribution, test status)
+- [x] Dashboard export to PDF
 
 ### Compliance Project Templates
 
 Polarion ships pre-configured project templates for regulated industries (IEC 62304, ISO 26262, DO-178C, Automotive SPICE).
 
-- [ ] Project template entity (workspace template with pre-configured modules, attribute defs, object types, lifecycle models, scripts)
-- [ ] Built-in templates for ISO 26262, DO-178C, IEC 62304
-- [ ] Template instantiation wizard
+- [x] Project template entity (workspace template with pre-configured modules, attribute defs, object types, lifecycle models, scripts)
+- [x] Built-in templates for ISO 26262, DO-178C, IEC 62304
+- [x] Template instantiation wizard
 
 ---
 

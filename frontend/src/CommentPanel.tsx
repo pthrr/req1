@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Comment } from "./api/client";
+import { api, type AppUser, type Comment } from "./api/client";
+import { MentionTextarea, renderMentionText } from "./MentionTextarea";
 import { theme } from "./theme";
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
 
 export function CommentPanel({ objectId, onClose }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
   const [newBody, setNewBody] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -25,9 +27,19 @@ export function CommentPanel({ objectId, onClose }: Props) {
     }
   }, [objectId]);
 
+  const fetchUsers = useCallback(async () => {
+    try {
+      const data = await api.listUsers({ active: true });
+      setUsers(data.items);
+    } catch {
+      // Non-critical
+    }
+  }, []);
+
   useEffect(() => {
     fetchComments();
-  }, [fetchComments]);
+    fetchUsers();
+  }, [fetchComments, fetchUsers]);
 
   const handleAdd = async () => {
     if (!newBody.trim()) return;
@@ -114,7 +126,7 @@ export function CommentPanel({ objectId, onClose }: Props) {
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: theme.spacing.sm }}>
                 <div style={{ flex: 1 }}>
-                  <p style={{ margin: "0 0 0.25rem 0", whiteSpace: "pre-wrap" }}>{c.body}</p>
+                  <p style={{ margin: "0 0 0.25rem 0", whiteSpace: "pre-wrap" }}>{renderMentionText(c.body, users)}</p>
                   <span style={{ fontSize: "0.8rem", color: theme.colors.textMuted }}>
                     {new Date(c.created_at).toLocaleString()}
                   </span>
@@ -152,12 +164,12 @@ export function CommentPanel({ objectId, onClose }: Props) {
         </div>
 
         <div style={{ display: "flex", gap: theme.spacing.sm }}>
-          <textarea
+          <MentionTextarea
             value={newBody}
-            onChange={(e) => setNewBody(e.target.value)}
-            placeholder="Write a comment..."
+            onChange={(v) => setNewBody(v)}
+            users={users}
+            placeholder="Write a comment... (use @ to mention)"
             rows={3}
-            style={{ flex: 1, padding: theme.spacing.sm, resize: "vertical" }}
           />
           <button
             onClick={handleAdd}

@@ -14,6 +14,7 @@ use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitEx
 use req1_server::config::Config;
 use req1_server::middleware;
 use req1_server::routes;
+use req1_server::scheduler;
 use req1_server::state::AppState;
 
 #[tokio::main]
@@ -37,10 +38,11 @@ async fn main() -> anyhow::Result<()> {
         config: config.clone(),
     };
 
+    scheduler::spawn_scheduler(state.db.clone());
+
     let cors = build_cors_layer(&config);
 
-    let mut app = routes::router()
-        .with_state(state)
+    let mut app = routes::router(state)
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn(middleware::cache_control));

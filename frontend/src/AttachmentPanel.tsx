@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type Attachment } from "./api/client";
+import { api, type Attachment } from "./api/client";
 import { theme } from "./theme";
-
-const BASE_URL = "/api/v1";
 
 interface Props {
   objectId: string;
@@ -17,10 +15,8 @@ export function AttachmentPanel({ objectId, onClose }: Props) {
 
   const fetchAttachments = useCallback(async () => {
     try {
-      const res = await fetch(`${BASE_URL}/objects/${objectId}/attachments`);
-      if (!res.ok) throw new Error(`Failed: ${res.status}`);
-      const data = await res.json();
-      setAttachments(data.items ?? data);
+      const data = await api.listAttachments(objectId);
+      setAttachments(data);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load attachments");
@@ -37,16 +33,10 @@ export function AttachmentPanel({ objectId, onClose }: Props) {
     setUploading(true);
     try {
       for (const file of Array.from(files)) {
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await fetch(`${BASE_URL}/objects/${objectId}/attachments`, {
-          method: "POST",
-          body: formData,
-        });
-        if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+        await api.uploadAttachment(objectId, file);
       }
       if (fileInputRef.current) fileInputRef.current.value = "";
-      fetchAttachments();
+      await fetchAttachments();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to upload");
     } finally {
@@ -56,10 +46,22 @@ export function AttachmentPanel({ objectId, onClose }: Props) {
 
   const handleDelete = async (id: string) => {
     try {
-      await fetch(`${BASE_URL}/attachments/${id}`, { method: "DELETE" });
-      fetchAttachments();
+      await api.deleteAttachment(objectId, id);
+      await fetchAttachments();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete attachment");
+    }
+  };
+
+  const [verifyStatus, setVerifyStatus] = useState<Record<string, boolean | null>>({});
+
+  const handleVerify = async (att: Attachment) => {
+    try {
+      const result = await api.verifyAttachment(objectId, att.id);
+      setVerifyStatus((prev) => ({ ...prev, [att.id]: result.valid }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Verify failed");
+      setVerifyStatus((prev) => ({ ...prev, [att.id]: false }));
     }
   };
 
@@ -145,13 +147,23 @@ export function AttachmentPanel({ objectId, onClose }: Props) {
               {formatSize(att.size_bytes)}
             </span>
             <a
-              href={`${BASE_URL}/attachments/${att.id}/download`}
+              href={api.downloadAttachmentUrl(att.object_id, att.id)}
               target="_blank"
               rel="noopener noreferrer"
               style={{ fontSize: "0.85rem" }}
             >
               Download
             </a>
+            <button
+              onClick={() => handleVerify(att)}
+              style={{ padding: "2px 8px", fontSize: "0.8rem" }}
+            >
+              {verifyStatus[att.id] === true
+                ? "\u2705"
+                : verifyStatus[att.id] === false
+                  ? "\u274C"
+                  : "Verify"}
+            </button>
             <button
               onClick={() => handleDelete(att.id)}
               style={{ padding: "2px 8px", fontSize: "0.8rem" }}

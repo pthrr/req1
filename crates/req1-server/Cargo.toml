@@ -19,7 +19,9 @@ thiserror = { workspace = true }
 anyhow = "1"
 sea-orm-migration = { workspace = true }
 
+sha2 = { workspace = true }
 req1-core = { path = "../req1-core" }
+jsonwebtoken = { workspace = true }
 req1-reqif = { path = "../req1-reqif" }
 entity = { path = "../../entity" }
 migration = { path = "../../migration" }
@@ -28,3 +30,4 @@ migration = { path = "../../migration" }
 tower = { workspace = true }
 http-body-util = { workspace = true }
 reqwest = { workspace = true }
+zip = { workspace = true }

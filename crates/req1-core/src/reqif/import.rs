@@ -122,6 +122,9 @@ pub async fn import_reqif(
             digits: Set(3),
             required_attributes: Set(json!([])),
             default_classification: Set("normative".to_owned()),
+            publish_template: Set(None),
+            default_lifecycle_model_id: Set(None),
+            signature_config: Set(json!({})),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -173,6 +176,8 @@ pub async fn import_reqif(
                             default_value: Set(None),
                             enum_values: Set(enum_vals),
                             multi_select: Set(multi_select),
+                            depends_on: Set(None),
+                            dependency_mapping: Set(None),
                             created_at: Set(now),
                         };
                         let _ = ad_model.insert(&txn).await?;
@@ -260,6 +265,12 @@ pub async fn import_reqif(
                 reviewed_by: Set(None),
                 references_: Set(json!([])),
                 object_type_id: Set(ot_uuid),
+                lifecycle_state: Set(None),
+                lifecycle_model_id: Set(None),
+                source_object_id: Set(None),
+                source_module_id: Set(None),
+                is_placeholder: Set(false),
+                docx_source_id: Set(None),
                 deleted_at: Set(None),
                 created_at: Set(now),
                 updated_at: Set(now),

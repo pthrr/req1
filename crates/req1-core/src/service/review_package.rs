@@ -1,13 +1,26 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use entity::review_package;
+use entity::{review_assignment, review_package};
 
 use crate::PaginatedResponse;
 use crate::error::CoreError;
+use crate::service::e_signature::{ESignatureService, SignInput};
+
+#[derive(Debug, Serialize)]
+pub struct VotingSummary {
+    pub package_id: Uuid,
+    pub package_name: String,
+    pub package_status: String,
+    pub total_assignments: u64,
+    pub approved: u64,
+    pub rejected: u64,
+    pub abstained: u64,
+    pub pending: u64,
+}
 
 const VALID_STATUSES: &[&str] = &[
     "draft",
@@ -129,5 +142,104 @@ impl ReviewPackageService {
             offset,
             limit,
         })
+    }
+
+    pub async fn voting_summary(
+        db: &impl ConnectionTrait,
+        module_id: Uuid,
+    ) -> Result<Vec<VotingSummary>, CoreError> {
+        let packages = review_package::Entity::find()
+            .filter(review_package::Column::ModuleId.eq(module_id))
+            .all(db)
+            .await?;
+
+        let mut summaries = Vec::new();
+        for pkg in &packages {
+            let all_assignments = review_assignment::Entity::find()
+                .filter(review_assignment::Column::PackageId.eq(pkg.id))
+                .all(db)
+                .await?;
+
+            let total = all_assignments.len() as u64;
+            let approved = all_assignments
+                .iter()
+                .filter(|a| a.status == "approved")
+                .count() as u64;
+            let rejected = all_assignments
+                .iter()
+                .filter(|a| a.status == "rejected")
+                .count() as u64;
+            let abstained = all_assignments
+                .iter()
+                .filter(|a| a.status == "abstained")
+                .count() as u64;
+            let pending = all_assignments
+                .iter()
+                .filter(|a| a.status == "pending")
+                .count() as u64;
+
+            summaries.push(VotingSummary {
+                package_id: pkg.id,
+                package_name: pkg.name.clone(),
+                package_status: pkg.status.clone(),
+                total_assignments: total,
+                approved,
+                rejected,
+                abstained,
+                pending,
+            });
+        }
+
+        Ok(summaries)
+    }
+
+    /// Transition a review package status with optional e-signature enforcement.
+    pub async fn transition_status(
+        db: &impl ConnectionTrait,
+        id: Uuid,
+        new_status: &str,
+        signer_id: Uuid,
+        sign_input: Option<SignInput>,
+    ) -> Result<review_package::Model, CoreError> {
+        if !VALID_STATUSES.contains(&new_status) {
+            return Err(CoreError::BadRequest(format!(
+                "invalid status '{new_status}', must be one of: {VALID_STATUSES:?}"
+            )));
+        }
+
+        let existing = review_package::Entity::find_by_id(id)
+            .one(db)
+            .await?
+            .ok_or_else(|| CoreError::NotFound(format!("review_package {id} not found")))?;
+
+        // Check if signature is required
+        let (needs_sig, needs_four_eyes) = ESignatureService::requires_signature(
+            db,
+            existing.module_id,
+            &existing.status,
+            new_status,
+        )
+        .await?;
+
+        if needs_sig {
+            let input = sign_input.ok_or_else(|| {
+                CoreError::BadRequest(
+                    "this transition requires an e-signature (password + meaning)".to_owned(),
+                )
+            })?;
+
+            if needs_four_eyes {
+                ESignatureService::check_four_eyes(db, signer_id, "review_package", id).await?;
+            }
+
+            let _sig = ESignatureService::sign(db, signer_id, "review_package", id, input).await?;
+        }
+
+        let mut active: review_package::ActiveModel = existing.into();
+        active.status = Set(new_status.to_owned());
+        active.updated_at = Set(chrono::Utc::now().fixed_offset());
+
+        let result = active.update(db).await?;
+        Ok(result)
     }
 }

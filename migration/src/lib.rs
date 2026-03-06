@@ -23,6 +23,22 @@ mod m20260221_000020_attachment_table;
 mod m20260221_000021_soft_delete;
 mod m20260221_000022_multi_value_enum;
 mod m20260221_000023_seed_layout_scripts;
+mod m20260221_000024_webhook_table;
+mod m20260221_000025_module_publish_template;
+mod m20260221_000026_lifecycle;
+mod m20260221_000027_test_tables;
+mod m20260221_000028_dependent_enums;
+mod m20260221_000029_script_priority;
+mod m20260221_000030_review_comment;
+mod m20260221_000031_placeholder;
+mod m20260221_000032_auth_tables;
+mod m20260221_000033_diagram_table;
+mod m20260221_000034_script_scheduling;
+mod m20260221_000035_mentions_and_notifications;
+mod m20260221_000036_e_signature;
+mod m20260221_000037_docx_import_tracking;
+mod m20260221_000038_dashboard_tables;
+mod m20260221_000039_project_template;
 
 pub struct Migrator;
 
@@ -53,6 +69,22 @@ impl MigratorTrait for Migrator {
             Box::new(m20260221_000021_soft_delete::Migration),
             Box::new(m20260221_000022_multi_value_enum::Migration),
             Box::new(m20260221_000023_seed_layout_scripts::Migration),
+            Box::new(m20260221_000024_webhook_table::Migration),
+            Box::new(m20260221_000025_module_publish_template::Migration),
+            Box::new(m20260221_000026_lifecycle::Migration),
+            Box::new(m20260221_000027_test_tables::Migration),
+            Box::new(m20260221_000028_dependent_enums::Migration),
+            Box::new(m20260221_000029_script_priority::Migration),
+            Box::new(m20260221_000030_review_comment::Migration),
+            Box::new(m20260221_000031_placeholder::Migration),
+            Box::new(m20260221_000032_auth_tables::Migration),
+            Box::new(m20260221_000033_diagram_table::Migration),
+            Box::new(m20260221_000034_script_scheduling::Migration),
+            Box::new(m20260221_000035_mentions_and_notifications::Migration),
+            Box::new(m20260221_000036_e_signature::Migration),
+            Box::new(m20260221_000037_docx_import_tracking::Migration),
+            Box::new(m20260221_000038_dashboard_tables::Migration),
+            Box::new(m20260221_000039_project_template::Migration),
         ]
     }
 }

@@ -6,6 +6,7 @@ import {
   type Project,
   type Workspace,
 } from "./api/client";
+import { TemplateWizard } from "./TemplateWizard";
 import { theme } from "./theme";
 
 interface Props {
@@ -28,9 +29,11 @@ export function Sidebar({ collapsed, onToggleCollapse }: Props) {
   const [creating, setCreating] = useState<{ level: "workspace" | "project" | "module"; parentId?: string } | null>(null);
   const [newName, setNewName] = useState("");
   const [templateModuleId, setTemplateModuleId] = useState("");
+  const [copyObjects, setCopyObjects] = useState(false);
   const [allModules, setAllModules] = useState<Module[]>([]);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameName, setRenameName] = useState("");
+  const [templateWizardWsId, setTemplateWizardWsId] = useState<string | null>(null);
 
   // Fetch workspaces on mount
   useEffect(() => {
@@ -120,6 +123,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: Props) {
             name: newName.trim(),
             project_id: creating.parentId,
             template_module_id: templateModuleId,
+            copy_objects: copyObjects || undefined,
           });
         } else {
           await api.createModule({ name: newName.trim(), project_id: creating.parentId });
@@ -130,6 +134,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: Props) {
     setCreating(null);
     setNewName("");
     setTemplateModuleId("");
+    setCopyObjects(false);
   };
 
   const handleRename = async (id: string, level: "workspace" | "project" | "module", parentId?: string) => {
@@ -352,6 +357,13 @@ export function Sidebar({ collapsed, onToggleCollapse }: Props) {
                     </button>
                     <button
                       style={actionBtnStyle}
+                      title="From Template"
+                      onClick={(e) => { e.stopPropagation(); setTemplateWizardWsId(ws.id); }}
+                    >
+                      T
+                    </button>
+                    <button
+                      style={actionBtnStyle}
                       title="Rename"
                       onClick={(e) => { e.stopPropagation(); setRenamingId(`ws-${ws.id}`); setRenameName(ws.name); }}
                     >
@@ -371,6 +383,20 @@ export function Sidebar({ collapsed, onToggleCollapse }: Props) {
               {/* Expanded workspace children */}
               {wsExpanded && (
                 <>
+                  {/* Dashboards link */}
+                  <div
+                    style={{
+                      ...itemStyle(1, false),
+                      fontStyle: "italic",
+                      fontSize: "0.8rem",
+                      color: theme.colors.textSecondary,
+                    }}
+                    onClick={() => navigate(`/w/${ws.id}/dashboards`)}
+                  >
+                    <span style={{ ...chevronStyle, visibility: "hidden" }} />
+                    Dashboards
+                  </div>
+
                   {/* Inline create project */}
                   {creating?.level === "project" && creating.parentId === ws.id && (
                     <div style={{ padding: theme.sidebar.itemPadding, paddingLeft: 1 * theme.sidebar.indent + 8 }}>
@@ -502,6 +528,16 @@ export function Sidebar({ collapsed, onToggleCollapse }: Props) {
                                     ))}
                                   </select>
                                 )}
+                                {templateModuleId && (
+                                  <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={copyObjects}
+                                      onChange={(e) => setCopyObjects(e.target.checked)}
+                                    />
+                                    Include objects
+                                  </label>
+                                )}
                               </div>
                             )}
 
@@ -564,6 +600,16 @@ export function Sidebar({ collapsed, onToggleCollapse }: Props) {
           );
         })}
       </div>
+      {templateWizardWsId && (
+        <TemplateWizard
+          workspaceId={templateWizardWsId}
+          onClose={() => setTemplateWizardWsId(null)}
+          onCreated={() => {
+            if (templateWizardWsId) fetchProjects(templateWizardWsId);
+            setTemplateWizardWsId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

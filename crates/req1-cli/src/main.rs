@@ -70,15 +70,18 @@ enum Command {
         #[arg(long)]
         link_id: String,
     },
-    /// Import a `ReqIF` file into a project
+    /// Import a file into a project or module
     Import {
-        /// Project ID
+        /// Project ID (required for reqif import)
         #[arg(long)]
-        project_id: String,
-        /// Path to .reqif or .reqifz file
+        project_id: Option<String>,
+        /// Module ID (required for csv import)
+        #[arg(long)]
+        module_id: Option<String>,
+        /// Path to import file
         #[arg(long, short)]
         file: String,
-        /// File format (reqif or reqifz, auto-detected from extension if omitted)
+        /// File format: reqif, reqifz, csv (auto-detected from extension if omitted)
         #[arg(long)]
         format: Option<String>,
     },
@@ -298,9 +301,20 @@ async fn main() -> Result<()> {
         } => cmd_reorder(&client, base, &module_id, &object_id, &action).await?,
         Command::Import {
             project_id,
+            module_id,
             file,
             format,
-        } => cmd_import(&client, base, &project_id, &file, format.as_deref()).await?,
+        } => {
+            cmd_import(
+                &client,
+                base,
+                project_id.as_deref(),
+                module_id.as_deref(),
+                &file,
+                format.as_deref(),
+            )
+            .await?;
+        }
         Command::Export {
             module_id,
             output,
@@ -895,6 +909,11 @@ async fn cmd_reorder(
 }
 
 #[derive(Debug, Deserialize)]
+struct CsvImportResponse {
+    objects_created: usize,
+}
+
+#[derive(Debug, Deserialize)]
 struct ImportResponse {
     module_id: uuid::Uuid,
     objects_created: usize,
@@ -907,56 +926,97 @@ struct ImportResponse {
 async fn cmd_import(
     client: &reqwest::Client,
     base: &str,
-    project_id: &str,
+    project_id: Option<&str>,
+    module_id: Option<&str>,
     file_path: &str,
     format: Option<&str>,
 ) -> Result<()> {
-    let data = std::fs::read(file_path).with_context(|| format!("read {file_path}"))?;
-
     let filename = std::path::Path::new(file_path)
         .file_name()
         .and_then(|n| n.to_str())
-        .unwrap_or("upload.reqif")
+        .unwrap_or("upload")
         .to_owned();
 
-    let mime = match format {
-        Some("reqifz") => "application/zip",
-        Some("reqif") => "application/xml",
-        _ if filename.ends_with(".reqifz") => "application/zip",
-        _ => "application/xml",
-    };
+    let path = std::path::Path::new(&filename);
+    let effective_format = format.unwrap_or_else(|| {
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        if ext.eq_ignore_ascii_case("csv") {
+            "csv"
+        } else if ext.eq_ignore_ascii_case("reqifz") {
+            "reqifz"
+        } else {
+            "reqif"
+        }
+    });
 
-    let part = reqwest::multipart::Part::bytes(data)
-        .file_name(filename)
-        .mime_str(mime)
-        .context("invalid mime")?;
+    if effective_format == "csv" {
+        let mid = module_id
+            .ok_or_else(|| anyhow::anyhow!("--module-id is required for CSV import"))?;
 
-    let form = reqwest::multipart::Form::new().part("file", part);
+        let content =
+            std::fs::read_to_string(file_path).with_context(|| format!("read {file_path}"))?;
 
-    let url = format!("{base}/api/v1/projects/{project_id}/reqif/import");
-    let resp = client
-        .post(&url)
-        .multipart(form)
-        .send()
-        .await
-        .context("request failed")?;
+        let url = format!("{base}/api/v1/modules/{mid}/import/csv");
+        let resp = client
+            .post(&url)
+            .header("Content-Type", "text/csv")
+            .body(content)
+            .send()
+            .await
+            .context("request failed")?;
 
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        anyhow::bail!("import failed ({status}): {body}");
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("import failed ({status}): {body}");
+        }
+
+        let result: CsvImportResponse = resp.json().await.context("invalid json")?;
+        println!("Imported {} objects from CSV", result.objects_created);
+    } else {
+        let pid = project_id
+            .ok_or_else(|| anyhow::anyhow!("--project-id is required for ReqIF import"))?;
+
+        let data = std::fs::read(file_path).with_context(|| format!("read {file_path}"))?;
+
+        let mime = if effective_format == "reqifz" {
+            "application/zip"
+        } else {
+            "application/xml"
+        };
+
+        let part = reqwest::multipart::Part::bytes(data)
+            .file_name(filename)
+            .mime_str(mime)
+            .context("invalid mime")?;
+
+        let form = reqwest::multipart::Form::new().part("file", part);
+
+        let url = format!("{base}/api/v1/projects/{pid}/reqif/import");
+        let resp = client
+            .post(&url)
+            .multipart(form)
+            .send()
+            .await
+            .context("request failed")?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("import failed ({status}): {body}");
+        }
+
+        let result: ImportResponse = resp.json().await.context("invalid json")?;
+        println!("Imported ReqIF into module {}", result.module_id);
+        println!(
+            "  {} objects, {} links, {} attribute definitions, {} object types, {} link types",
+            result.objects_created,
+            result.links_created,
+            result.attribute_definitions_created,
+            result.object_types_created,
+            result.link_types_created,
+        );
     }
-
-    let result: ImportResponse = resp.json().await.context("invalid json")?;
-    println!("Imported ReqIF into module {}", result.module_id);
-    println!(
-        "  {} objects, {} links, {} attribute definitions, {} object types, {} link types",
-        result.objects_created,
-        result.links_created,
-        result.attribute_definitions_created,
-        result.object_types_created,
-        result.link_types_created,
-    );
     Ok(())
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "./api/client";
 import { theme } from "./theme";
 
@@ -13,9 +13,25 @@ export function TemplateEditorPanel({ moduleId, onClose }: Props) {
   const [saved, setSaved] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  // Load existing template from module on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const mod = await api.getModule(moduleId);
+        if (!cancelled && mod.publish_template) {
+          setTemplate(mod.publish_template);
+        }
+      } catch {
+        // Non-critical — template field may be empty
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [moduleId]);
+
   const handleSave = async () => {
     try {
-      await api.updateModule(moduleId, { description: `__template__${template}` });
+      await api.updateModule(moduleId, { publish_template: template });
       setSaved(true);
       setError(null);
       setTimeout(() => setSaved(false), 2000);

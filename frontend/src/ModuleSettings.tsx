@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Module } from "./api/client";
+import { api, type Module, type SignatureConfig } from "./api/client";
 import { theme } from "./theme";
+
+const ALL_TRANSITIONS = [
+  "draft->open",
+  "open->in_review",
+  "in_review->approved",
+  "in_review->rejected",
+];
 
 interface Props {
   module: Module;
@@ -18,6 +25,12 @@ export function ModuleSettings({ module, onModuleUpdated }: Props) {
     module.required_attributes ?? [],
   );
   const [newAttr, setNewAttr] = useState("");
+  const [sigTransitions, setSigTransitions] = useState<string[]>(
+    module.signature_config?.require_signature_transitions ?? [],
+  );
+  const [fourEyes, setFourEyes] = useState(
+    module.signature_config?.require_four_eyes ?? false,
+  );
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -31,6 +44,8 @@ export function ModuleSettings({ module, onModuleUpdated }: Props) {
       setDigits(module.digits);
       setDefaultClassification(module.default_classification);
       setRequiredAttrs(module.required_attributes ?? []);
+      setSigTransitions(module.signature_config?.require_signature_transitions ?? []);
+      setFourEyes(module.signature_config?.require_four_eyes ?? false);
       setError(null);
       setSaved(false);
     }
@@ -38,12 +53,17 @@ export function ModuleSettings({ module, onModuleUpdated }: Props) {
 
   const handleSave = useCallback(async () => {
     try {
+      const sigConfig: SignatureConfig = {
+        require_signature_transitions: sigTransitions,
+        require_four_eyes: fourEyes,
+      };
       const updated = await api.updateModule(module.id, {
         prefix,
         separator,
         digits,
         default_classification: defaultClassification,
         required_attributes: requiredAttrs,
+        signature_config: sigConfig,
       });
       setSaved(true);
       setError(null);
@@ -52,7 +72,7 @@ export function ModuleSettings({ module, onModuleUpdated }: Props) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save settings");
     }
-  }, [module.id, prefix, separator, digits, defaultClassification, requiredAttrs, onModuleUpdated]);
+  }, [module.id, prefix, separator, digits, defaultClassification, requiredAttrs, sigTransitions, fourEyes, onModuleUpdated]);
 
   const handleAddAttr = () => {
     const name = newAttr.trim();
@@ -181,6 +201,39 @@ export function ModuleSettings({ module, onModuleUpdated }: Props) {
             Add
           </button>
         </div>
+      </div>
+
+      <div style={{ marginBottom: theme.spacing.md }}>
+        <label style={labelStyle}>Signature Policy</label>
+        <div style={{ fontSize: "0.85rem", marginBottom: theme.spacing.sm }}>
+          <p style={{ margin: `0 0 ${theme.spacing.xs}`, color: theme.colors.textSecondary }}>
+            Select transitions that require e-signature:
+          </p>
+          {ALL_TRANSITIONS.map((t) => (
+            <label key={t} style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+              <input
+                type="checkbox"
+                checked={sigTransitions.includes(t)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSigTransitions((prev) => [...prev, t]);
+                  } else {
+                    setSigTransitions((prev) => prev.filter((x) => x !== t));
+                  }
+                }}
+              />
+              {t}
+            </label>
+          ))}
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.85rem" }}>
+          <input
+            type="checkbox"
+            checked={fourEyes}
+            onChange={(e) => setFourEyes(e.target.checked)}
+          />
+          Require four-eyes principle (signer cannot be creator)
+        </label>
       </div>
 
       <button

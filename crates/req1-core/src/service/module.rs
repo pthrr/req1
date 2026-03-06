@@ -1,10 +1,11 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Order, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use serde::Deserialize;
 use uuid::Uuid;
 
-use entity::{attribute_definition, module, object_type, script};
+use entity::{attribute_definition, link, module, object, object_type, script};
 
 use crate::PaginatedResponse;
 use crate::error::CoreError;
@@ -22,6 +23,9 @@ pub struct CreateModuleInput {
     pub digits: Option<i32>,
     pub required_attributes: Option<Vec<String>>,
     pub default_classification: Option<String>,
+    pub publish_template: Option<String>,
+    pub default_lifecycle_model_id: Option<Uuid>,
+    pub signature_config: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -33,6 +37,9 @@ pub struct UpdateModuleInput {
     pub digits: Option<i32>,
     pub required_attributes: Option<Vec<String>>,
     pub default_classification: Option<String>,
+    pub publish_template: Option<String>,
+    pub default_lifecycle_model_id: Option<Uuid>,
+    pub signature_config: Option<serde_json::Value>,
 }
 
 const fn default_limit() -> u64 {
@@ -54,6 +61,7 @@ pub struct CreateModuleFromTemplateInput {
     pub project_id: Uuid,
     pub description: Option<String>,
     pub template_module_id: Uuid,
+    pub copy_objects: Option<bool>,
 }
 
 pub struct ModuleService;
@@ -87,6 +95,9 @@ impl ModuleService {
                 input.required_attributes.unwrap_or_default()
             )),
             default_classification: Set(default_class),
+            publish_template: Set(input.publish_template),
+            default_lifecycle_model_id: Set(input.default_lifecycle_model_id),
+            signature_config: Set(input.signature_config.unwrap_or(serde_json::json!({}))),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -95,6 +106,7 @@ impl ModuleService {
         Ok(result)
     }
 
+    #[allow(clippy::too_many_lines)]
     pub async fn create_from_template(
         db: &impl ConnectionTrait,
         input: CreateModuleFromTemplateInput,
@@ -122,6 +134,9 @@ impl ModuleService {
             digits: Set(template.digits),
             required_attributes: Set(template.required_attributes),
             default_classification: Set(template.default_classification),
+            publish_template: Set(template.publish_template),
+            default_lifecycle_model_id: Set(None),
+            signature_config: Set(template.signature_config),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -141,6 +156,8 @@ impl ModuleService {
                 default_value: Set(def.default_value.clone()),
                 enum_values: Set(def.enum_values.clone()),
                 multi_select: Set(def.multi_select),
+                depends_on: Set(def.depends_on),
+                dependency_mapping: Set(def.dependency_mapping.clone()),
                 created_at: Set(now),
             };
             let _ = copy.insert(db).await?;
@@ -160,20 +177,27 @@ impl ModuleService {
                 hook_point: Set(s.hook_point.clone()),
                 source_code: Set(s.source_code.clone()),
                 enabled: Set(s.enabled),
+                priority: Set(s.priority),
+                cron_expression: Set(None),
+                last_run_at: Set(None),
+                next_run_at: Set(None),
                 created_at: Set(now),
                 updated_at: Set(now),
             };
             let _ = copy.insert(db).await?;
         }
 
-        // Copy object types
+        // Copy object types — build old->new ID mapping for object_type_id remapping
         let obj_types = object_type::Entity::find()
             .filter(object_type::Column::ModuleId.eq(input.template_module_id))
             .all(db)
             .await?;
+        let mut type_id_map = std::collections::HashMap::new();
         for ot in &obj_types {
+            let new_type_id = Uuid::now_v7();
+            let _ = type_id_map.insert(ot.id, new_type_id);
             let copy = object_type::ActiveModel {
-                id: Set(Uuid::now_v7()),
+                id: Set(new_type_id),
                 module_id: Set(new_id),
                 name: Set(ot.name.clone()),
                 description: Set(ot.description.clone()),
@@ -184,6 +208,93 @@ impl ModuleService {
                 updated_at: Set(now),
             };
             let _ = copy.insert(db).await?;
+        }
+
+        // Copy objects + links if requested
+        if input.copy_objects == Some(true) {
+            let objects = object::Entity::find()
+                .filter(object::Column::ModuleId.eq(input.template_module_id))
+                .filter(object::Column::DeletedAt.is_null())
+                .order_by(object::Column::Position, Order::Asc)
+                .all(db)
+                .await?;
+
+            // Build old_id -> new_id mapping
+            let mut obj_id_map = std::collections::HashMap::new();
+            for obj in &objects {
+                let _ = obj_id_map.insert(obj.id, Uuid::now_v7());
+            }
+
+            // Insert copied objects with remapped parent_id and object_type_id
+            for obj in &objects {
+                let new_obj_id = *obj_id_map.get(&obj.id).ok_or_else(|| {
+                    CoreError::Internal("object id not in mapping".to_owned())
+                })?;
+                let new_parent_id = obj.parent_id.and_then(|pid| obj_id_map.get(&pid).copied());
+                let new_type_id = obj.object_type_id.and_then(|tid| type_id_map.get(&tid).copied());
+                let copy = object::ActiveModel {
+                    id: Set(new_obj_id),
+                    module_id: Set(new_id),
+                    parent_id: Set(new_parent_id),
+                    position: Set(obj.position),
+                    level: Set(obj.level.clone()),
+                    heading: Set(obj.heading.clone()),
+                    body: Set(obj.body.clone()),
+                    attributes: Set(obj.attributes.clone()),
+                    current_version: Set(1),
+                    classification: Set(obj.classification.clone()),
+                    content_fingerprint: Set(obj.content_fingerprint.clone()),
+                    reviewed_fingerprint: Set(None),
+                    reviewed_at: Set(None),
+                    reviewed_by: Set(None),
+                    references_: Set(obj.references_.clone()),
+                    object_type_id: Set(new_type_id),
+                    lifecycle_state: Set(obj.lifecycle_state.clone()),
+                    lifecycle_model_id: Set(None),
+                    source_object_id: Set(None),
+                    source_module_id: Set(None),
+                    is_placeholder: Set(false),
+                    docx_source_id: Set(None),
+                    deleted_at: Set(None),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                };
+                let _ = copy.insert(db).await?;
+            }
+
+            // Copy links where both source and target are in the copied objects
+            let old_ids: Vec<Uuid> = obj_id_map.keys().copied().collect();
+            if !old_ids.is_empty() {
+                let links = link::Entity::find()
+                    .filter(link::Column::SourceObjectId.is_in(old_ids.clone()))
+                    .filter(link::Column::TargetObjectId.is_in(old_ids))
+                    .all(db)
+                    .await?;
+
+                for lnk in &links {
+                    if let (Some(new_src), Some(new_tgt)) = (
+                        obj_id_map.get(&lnk.source_object_id),
+                        obj_id_map.get(&lnk.target_object_id),
+                    ) {
+                        let copy = link::ActiveModel {
+                            id: Set(Uuid::now_v7()),
+                            source_object_id: Set(*new_src),
+                            target_object_id: Set(*new_tgt),
+                            link_type_id: Set(lnk.link_type_id),
+                            attributes: Set(lnk.attributes.clone()),
+                            suspect: Set(false),
+                            source_fingerprint: Set(lnk.source_fingerprint.clone()),
+                            target_fingerprint: Set(lnk.target_fingerprint.clone()),
+                            created_at: Set(now),
+                            updated_at: Set(now),
+                        };
+                        let _ = copy.insert(db).await?;
+                    }
+                }
+            }
+
+            // Recompute levels on the new module
+            crate::level::recompute_module_levels(db, new_id).await?;
         }
 
         module::Entity::find_by_id(new_id)
@@ -228,6 +339,15 @@ impl ModuleService {
                 )));
             }
             active.default_classification = Set(default_classification.clone());
+        }
+        if let Some(publish_template) = input.publish_template {
+            active.publish_template = Set(Some(publish_template));
+        }
+        if let Some(lifecycle_id) = input.default_lifecycle_model_id {
+            active.default_lifecycle_model_id = Set(Some(lifecycle_id));
+        }
+        if let Some(signature_config) = input.signature_config {
+            active.signature_config = Set(signature_config);
         }
         active.updated_at = Set(chrono::Utc::now().fixed_offset());
 
