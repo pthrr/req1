@@ -47,9 +47,7 @@ impl MigrationTrait for Migration {
             .await?;
 
         let _ = db
-            .execute_unprepared(
-                "CREATE INDEX idx_notification_created ON notification(created_at)",
-            )
+            .execute_unprepared("CREATE INDEX idx_notification_created ON notification(created_at)")
             .await?;
 
         Ok(())
@@ -61,7 +59,9 @@ impl MigrationTrait for Migration {
             .execute_unprepared("DROP TABLE IF EXISTS notification")
             .await?;
         let _ = db
-            .execute_unprepared("ALTER TABLE review_comment DROP COLUMN IF EXISTS mentioned_user_ids")
+            .execute_unprepared(
+                "ALTER TABLE review_comment DROP COLUMN IF EXISTS mentioned_user_ids",
+            )
             .await?;
         let _ = db
             .execute_unprepared("ALTER TABLE comment DROP COLUMN IF EXISTS mentioned_user_ids")

@@ -24,7 +24,12 @@ pub fn routes() -> Router<AppState> {
         .route("/link-types", get(list_link_types).post(create_link_type))
 }
 
-async fn list_links(
+#[utoipa::path(get, path = "/api/v1/links", tag = "Links",
+    security(("bearer_auth" = [])),
+    params(ListLinksFilter),
+    responses((status = 200, body = PaginatedResponse<link::Model>))
+)]
+pub(crate) async fn list_links(
     State(state): State<AppState>,
     Query(filter): Query<ListLinksFilter>,
 ) -> Result<Json<PaginatedResponse<link::Model>>, AppError> {
@@ -32,7 +37,12 @@ async fn list_links(
     Ok(Json(result))
 }
 
-async fn create_link(
+#[utoipa::path(post, path = "/api/v1/links", tag = "Links",
+    security(("bearer_auth" = [])),
+    request_body = CreateLinkInput,
+    responses((status = 201, body = link::Model))
+)]
+pub(crate) async fn create_link(
     State(state): State<AppState>,
     Json(body): Json<CreateLinkInput>,
 ) -> Result<(axum::http::StatusCode, Json<link::Model>), AppError> {
@@ -40,7 +50,12 @@ async fn create_link(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_link(
+#[utoipa::path(get, path = "/api/v1/links/{id}", tag = "Links",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Link ID")),
+    responses((status = 200, body = link::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_link(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<link::Model>, AppError> {
@@ -48,7 +63,13 @@ async fn get_link(
     Ok(Json(result))
 }
 
-async fn update_link(
+#[utoipa::path(patch, path = "/api/v1/links/{id}", tag = "Links",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Link ID")),
+    request_body = UpdateLinkInput,
+    responses((status = 200, body = link::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn update_link(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateLinkInput>,
@@ -57,7 +78,12 @@ async fn update_link(
     Ok(Json(result))
 }
 
-async fn delete_link(
+#[utoipa::path(delete, path = "/api/v1/links/{id}", tag = "Links",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Link ID")),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_link(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<axum::http::StatusCode, AppError> {
@@ -65,14 +91,23 @@ async fn delete_link(
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
-async fn list_link_types(
+#[utoipa::path(get, path = "/api/v1/link-types", tag = "Links",
+    security(("bearer_auth" = [])),
+    responses((status = 200, body = Vec<link_type::Model>))
+)]
+pub(crate) async fn list_link_types(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<link_type::Model>>, AppError> {
     let items = LinkService::list_link_types(&state.db).await?;
     Ok(Json(items))
 }
 
-async fn create_link_type(
+#[utoipa::path(post, path = "/api/v1/link-types", tag = "Links",
+    security(("bearer_auth" = [])),
+    request_body = CreateLinkTypeInput,
+    responses((status = 201, body = link_type::Model))
+)]
+pub(crate) async fn create_link_type(
     State(state): State<AppState>,
     Json(body): Json<CreateLinkTypeInput>,
 ) -> Result<(axum::http::StatusCode, Json<link_type::Model>), AppError> {

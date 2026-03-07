@@ -1,13 +1,14 @@
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::{app_user, e_signature, module, review_package};
 
 use crate::error::CoreError;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct SignInput {
     pub password: String,
     pub meaning: String,
@@ -29,17 +30,18 @@ impl ESignatureService {
         let user = app_user::Entity::find_by_id(user_id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound("user not found".to_owned()))?;
+            .ok_or_else(|| CoreError::not_found("user not found".to_owned()))?;
 
-        let hash = user.password_hash.as_deref().ok_or_else(|| {
-            CoreError::Unauthorized("account has no password set".to_owned())
-        })?;
+        let hash = user
+            .password_hash
+            .as_deref()
+            .ok_or_else(|| CoreError::unauthorized("account has no password set".to_owned()))?;
 
         let valid = bcrypt::verify(&input.password, hash)
-            .map_err(|e| CoreError::Internal(format!("bcrypt verify error: {e}")))?;
+            .map_err(|e| CoreError::internal(format!("bcrypt verify error: {e}")))?;
 
         if !valid {
-            return Err(CoreError::Unauthorized(
+            return Err(CoreError::unauthorized(
                 "invalid password for e-signature".to_owned(),
             ));
         }
@@ -81,10 +83,10 @@ impl ESignatureService {
                 .one(db)
                 .await?
                 .ok_or_else(|| {
-                    CoreError::NotFound(format!("review_package {entity_id} not found"))
+                    CoreError::not_found(format!("review_package {entity_id} not found"))
                 })?;
             if pkg.created_by == Some(signer_id) {
-                return Err(CoreError::BadRequest(
+                return Err(CoreError::bad_request(
                     "four-eyes principle: signer cannot be the creator".to_owned(),
                 ));
             }
@@ -103,7 +105,7 @@ impl ESignatureService {
         let mod_entity = module::Entity::find_by_id(module_id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("module {module_id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("module {module_id} not found")))?;
 
         let config = &mod_entity.signature_config;
         let transition_key = format!("{from_state}->{to_state}");

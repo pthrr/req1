@@ -2,6 +2,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
 };
 use serde::Deserialize;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use entity::{link, link_type, object};
@@ -9,17 +10,19 @@ use entity::{link, link_type, object};
 use crate::PaginatedResponse;
 use crate::error::CoreError;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateLinkInput {
     pub source_object_id: Uuid,
     pub target_object_id: Uuid,
     pub link_type_id: Uuid,
+    #[schema(value_type = Option<Object>)]
     pub attributes: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateLinkInput {
     pub suspect: Option<bool>,
+    #[schema(value_type = Option<Object>)]
     pub attributes: Option<serde_json::Value>,
 }
 
@@ -27,7 +30,7 @@ const fn default_limit() -> u64 {
     50
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct ListLinksFilter {
     pub source_object_id: Option<Uuid>,
     pub target_object_id: Option<Uuid>,
@@ -39,7 +42,7 @@ pub struct ListLinksFilter {
     pub limit: u64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateLinkTypeInput {
     pub name: String,
     pub description: Option<String>,
@@ -53,7 +56,7 @@ impl LinkService {
         input: CreateLinkInput,
     ) -> Result<link::Model, CoreError> {
         if input.source_object_id == input.target_object_id {
-            return Err(CoreError::BadRequest(
+            return Err(CoreError::bad_request(
                 "source and target must be different objects".to_owned(),
             ));
         }
@@ -65,7 +68,7 @@ impl LinkService {
             .one(db)
             .await?;
         if existing.is_some() {
-            return Err(CoreError::BadRequest(
+            return Err(CoreError::bad_request(
                 "a link with this source, target, and type already exists".to_owned(),
             ));
         }
@@ -75,7 +78,7 @@ impl LinkService {
             .one(db)
             .await?
             .ok_or_else(|| {
-                CoreError::NotFound(format!(
+                CoreError::not_found(format!(
                     "source object {} not found",
                     input.source_object_id
                 ))
@@ -84,7 +87,7 @@ impl LinkService {
             .one(db)
             .await?
             .ok_or_else(|| {
-                CoreError::NotFound(format!(
+                CoreError::not_found(format!(
                     "target object {} not found",
                     input.target_object_id
                 ))
@@ -118,7 +121,7 @@ impl LinkService {
         let existing = link::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("link {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("link {id} not found")))?;
 
         let mut active: link::ActiveModel = existing.clone().into();
 
@@ -152,7 +155,7 @@ impl LinkService {
     pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
         let result = link::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("link {id} not found")));
+            return Err(CoreError::not_found(format!("link {id} not found")));
         }
         Ok(())
     }
@@ -161,7 +164,7 @@ impl LinkService {
         link::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("link {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("link {id} not found")))
     }
 
     pub async fn list(

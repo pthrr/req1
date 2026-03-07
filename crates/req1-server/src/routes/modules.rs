@@ -28,7 +28,12 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-async fn list_modules(
+#[utoipa::path(get, path = "/api/v1/modules", tag = "Modules",
+    security(("bearer_auth" = [])),
+    params(ListModulesFilter),
+    responses((status = 200, body = PaginatedResponse<module::Model>))
+)]
+pub(crate) async fn list_modules(
     State(state): State<AppState>,
     Query(filter): Query<ListModulesFilter>,
 ) -> Result<Json<PaginatedResponse<module::Model>>, AppError> {
@@ -36,7 +41,12 @@ async fn list_modules(
     Ok(Json(result))
 }
 
-async fn create_module(
+#[utoipa::path(post, path = "/api/v1/modules", tag = "Modules",
+    security(("bearer_auth" = [])),
+    request_body = CreateModuleInput,
+    responses((status = 201, body = module::Model))
+)]
+pub(crate) async fn create_module(
     State(state): State<AppState>,
     Json(body): Json<CreateModuleInput>,
 ) -> Result<(axum::http::StatusCode, Json<module::Model>), AppError> {
@@ -44,7 +54,12 @@ async fn create_module(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_module(
+#[utoipa::path(get, path = "/api/v1/modules/{id}", tag = "Modules",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Module ID")),
+    responses((status = 200, body = module::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_module(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<module::Model>, AppError> {
@@ -52,7 +67,13 @@ async fn get_module(
     Ok(Json(result))
 }
 
-async fn update_module(
+#[utoipa::path(patch, path = "/api/v1/modules/{id}", tag = "Modules",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Module ID")),
+    request_body = UpdateModuleInput,
+    responses((status = 200, body = module::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn update_module(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateModuleInput>,
@@ -61,7 +82,12 @@ async fn update_module(
     Ok(Json(result))
 }
 
-async fn delete_module(
+#[utoipa::path(delete, path = "/api/v1/modules/{id}", tag = "Modules",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Module ID")),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_module(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<axum::http::StatusCode, AppError> {
@@ -69,7 +95,12 @@ async fn delete_module(
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
-async fn create_module_from_template(
+#[utoipa::path(post, path = "/api/v1/modules/from-template", tag = "Modules",
+    security(("bearer_auth" = [])),
+    request_body = CreateModuleFromTemplateInput,
+    responses((status = 201, body = module::Model))
+)]
+pub(crate) async fn create_module_from_template(
     State(state): State<AppState>,
     Json(body): Json<CreateModuleFromTemplateInput>,
 ) -> Result<(axum::http::StatusCode, Json<module::Model>), AppError> {

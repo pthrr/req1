@@ -46,7 +46,7 @@ pub async fn require_auth(
     let token = match auth_header {
         Some(ref h) if h.starts_with("Bearer ") => &h[7..],
         _ => {
-            return AppError::Unauthorized("missing or invalid Authorization header".to_string())
+            return AppError::unauthorized("missing or invalid Authorization header")
                 .into_response();
         }
     };
@@ -56,8 +56,6 @@ pub async fn require_auth(
             let _ = request.extensions_mut().insert(auth_user);
             next.run(request).await
         }
-        Err(_) => {
-            AppError::Unauthorized("invalid or expired token".to_string()).into_response()
-        }
+        Err(_) => AppError::unauthorized("invalid or expired token").into_response(),
     }
 }

@@ -6,11 +6,11 @@ use axum::{
 use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
+use req1_core::PaginatedResponse;
 use req1_core::auth::AuthUser;
 use req1_core::service::diagram::{
     CreateDiagramInput, DiagramService, ListDiagramsFilter, UpdateDiagramInput,
 };
-use req1_core::PaginatedResponse;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -26,7 +26,15 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-async fn list_diagrams(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/diagrams", tag = "Diagrams",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ListDiagramsFilter,
+    ),
+    responses((status = 200, body = PaginatedResponse<entity::diagram::Model>))
+)]
+pub(crate) async fn list_diagrams(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Query(filter): Query<ListDiagramsFilter>,
@@ -35,7 +43,13 @@ async fn list_diagrams(
     Ok(Json(result))
 }
 
-async fn create_diagram(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/diagrams", tag = "Diagrams",
+    security(("bearer_auth" = [])),
+    params(("module_id" = Uuid, Path, description = "Module ID")),
+    request_body = CreateDiagramInput,
+    responses((status = 201, body = entity::diagram::Model))
+)]
+pub(crate) async fn create_diagram(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Extension(auth_user): Extension<AuthUser>,
@@ -50,7 +64,15 @@ async fn create_diagram(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_diagram(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/diagrams/{id}", tag = "Diagrams",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Diagram ID"),
+    ),
+    responses((status = 200, body = entity::diagram::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_diagram(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<entity::diagram::Model>, AppError> {
@@ -58,7 +80,16 @@ async fn get_diagram(
     Ok(Json(result))
 }
 
-async fn update_diagram(
+#[utoipa::path(patch, path = "/api/v1/modules/{module_id}/diagrams/{id}", tag = "Diagrams",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Diagram ID"),
+    ),
+    request_body = UpdateDiagramInput,
+    responses((status = 200, body = entity::diagram::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn update_diagram(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateDiagramInput>,
@@ -67,7 +98,15 @@ async fn update_diagram(
     Ok(Json(result))
 }
 
-async fn delete_diagram(
+#[utoipa::path(delete, path = "/api/v1/modules/{module_id}/diagrams/{id}", tag = "Diagrams",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Diagram ID"),
+    ),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_diagram(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<axum::http::StatusCode, AppError> {

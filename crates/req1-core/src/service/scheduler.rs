@@ -16,7 +16,7 @@ pub struct SchedulerService;
 impl SchedulerService {
     pub fn validate_cron(expression: &str) -> Result<(), CoreError> {
         let _ = cron::Schedule::from_str(expression)
-            .map_err(|e| CoreError::BadRequest(format!("invalid cron expression: {e}")))?;
+            .map_err(|e| CoreError::bad_request(format!("invalid cron expression: {e}")))?;
         Ok(())
     }
 
@@ -24,12 +24,12 @@ impl SchedulerService {
         expression: &str,
     ) -> Result<chrono::DateTime<chrono::FixedOffset>, CoreError> {
         let schedule = cron::Schedule::from_str(expression)
-            .map_err(|e| CoreError::BadRequest(format!("invalid cron expression: {e}")))?;
+            .map_err(|e| CoreError::bad_request(format!("invalid cron expression: {e}")))?;
 
         let next = schedule
             .upcoming(chrono::Utc)
             .next()
-            .ok_or_else(|| CoreError::Internal("no upcoming schedule time".to_string()))?;
+            .ok_or_else(|| CoreError::internal("no upcoming schedule time".to_string()))?;
 
         Ok(next.fixed_offset())
     }

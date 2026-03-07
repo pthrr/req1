@@ -6,6 +6,7 @@ use sea_orm::{
     Set,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::{object, test_case, test_execution};
@@ -19,7 +20,7 @@ const VALID_EXEC_STATUSES: &[&str] = &["passed", "failed", "blocked", "skipped",
 
 // --- DTOs ---
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateTestCaseInput {
     pub name: String,
     pub description: Option<String>,
@@ -31,7 +32,7 @@ pub struct CreateTestCaseInput {
     pub requirement_ids: Option<Vec<Uuid>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateTestCaseInput {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -43,7 +44,7 @@ pub struct UpdateTestCaseInput {
     pub requirement_ids: Option<Vec<Uuid>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateTestExecutionInput {
     pub status: Option<String>,
     pub executor: Option<String>,
@@ -53,7 +54,7 @@ pub struct CreateTestExecutionInput {
     pub environment: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateTestExecutionInput {
     pub status: Option<String>,
     pub executor: Option<String>,
@@ -63,7 +64,7 @@ pub struct UpdateTestExecutionInput {
     pub environment: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct TestStatusCounts {
     pub passed: u64,
     pub failed: u64,
@@ -72,7 +73,7 @@ pub struct TestStatusCounts {
     pub not_run: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct TestCoverageResponse {
     pub total_requirements: u64,
     pub requirements_with_tests: u64,
@@ -83,14 +84,14 @@ pub struct TestCoverageResponse {
     pub by_status: TestStatusCounts,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct TestCaseStatusCounts {
     pub draft: u64,
     pub ready: u64,
     pub deprecated: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct TestPriorityCounts {
     pub critical: u64,
     pub high: u64,
@@ -98,7 +99,7 @@ pub struct TestPriorityCounts {
     pub low: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct TestDashboardSummary {
     pub total_test_cases: u64,
     pub by_test_status: TestCaseStatusCounts,
@@ -121,7 +122,7 @@ impl TestService {
     ) -> Result<test_case::Model, CoreError> {
         let test_type = input.test_type.as_deref().unwrap_or("manual");
         if !VALID_TEST_TYPES.contains(&test_type) {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "invalid test_type '{test_type}', must be one of: {}",
                 VALID_TEST_TYPES.join(", ")
             )));
@@ -129,7 +130,7 @@ impl TestService {
 
         let priority = input.priority.as_deref().unwrap_or("medium");
         if !VALID_PRIORITIES.contains(&priority) {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "invalid priority '{priority}', must be one of: {}",
                 VALID_PRIORITIES.join(", ")
             )));
@@ -137,7 +138,7 @@ impl TestService {
 
         let status = input.status.as_deref().unwrap_or("draft");
         if !VALID_CASE_STATUSES.contains(&status) {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "invalid status '{status}', must be one of: {}",
                 VALID_CASE_STATUSES.join(", ")
             )));
@@ -147,7 +148,7 @@ impl TestService {
         let id = Uuid::now_v7();
 
         let req_ids = serde_json::to_value(input.requirement_ids.unwrap_or_default())
-            .map_err(|e| CoreError::Internal(format!("json error: {e}")))?;
+            .map_err(|e| CoreError::internal(format!("json error: {e}")))?;
 
         let model = test_case::ActiveModel {
             id: Set(id),
@@ -187,7 +188,7 @@ impl TestService {
         test_case::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("test case {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("test case {id} not found")))
     }
 
     pub async fn update_test_case(
@@ -198,7 +199,7 @@ impl TestService {
         let existing = test_case::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("test case {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("test case {id} not found")))?;
 
         let mut active: test_case::ActiveModel = existing.into();
 
@@ -216,7 +217,7 @@ impl TestService {
         }
         if let Some(test_type) = input.test_type {
             if !VALID_TEST_TYPES.contains(&test_type.as_str()) {
-                return Err(CoreError::BadRequest(format!(
+                return Err(CoreError::bad_request(format!(
                     "invalid test_type '{test_type}'"
                 )));
             }
@@ -224,7 +225,7 @@ impl TestService {
         }
         if let Some(priority) = input.priority {
             if !VALID_PRIORITIES.contains(&priority.as_str()) {
-                return Err(CoreError::BadRequest(format!(
+                return Err(CoreError::bad_request(format!(
                     "invalid priority '{priority}'"
                 )));
             }
@@ -232,15 +233,13 @@ impl TestService {
         }
         if let Some(status) = input.status {
             if !VALID_CASE_STATUSES.contains(&status.as_str()) {
-                return Err(CoreError::BadRequest(format!(
-                    "invalid status '{status}'"
-                )));
+                return Err(CoreError::bad_request(format!("invalid status '{status}'")));
             }
             active.status = Set(status);
         }
         if let Some(requirement_ids) = input.requirement_ids {
             let req_ids = serde_json::to_value(requirement_ids)
-                .map_err(|e| CoreError::Internal(format!("json error: {e}")))?;
+                .map_err(|e| CoreError::internal(format!("json error: {e}")))?;
             active.requirement_ids = Set(req_ids);
         }
 
@@ -253,7 +252,7 @@ impl TestService {
     pub async fn delete_test_case(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
         let result = test_case::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("test case {id} not found")));
+            return Err(CoreError::not_found(format!("test case {id} not found")));
         }
         Ok(())
     }
@@ -270,7 +269,7 @@ impl TestService {
 
         let status = input.status.as_deref().unwrap_or("not_run");
         if !VALID_EXEC_STATUSES.contains(&status) {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "invalid execution status '{status}', must be one of: {}",
                 VALID_EXEC_STATUSES.join(", ")
             )));
@@ -314,7 +313,7 @@ impl TestService {
         test_execution::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("test execution {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("test execution {id} not found")))
     }
 
     pub async fn update_test_execution(
@@ -325,13 +324,13 @@ impl TestService {
         let existing = test_execution::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("test execution {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("test execution {id} not found")))?;
 
         let mut active: test_execution::ActiveModel = existing.into();
 
         if let Some(status) = input.status {
             if !VALID_EXEC_STATUSES.contains(&status.as_str()) {
-                return Err(CoreError::BadRequest(format!(
+                return Err(CoreError::bad_request(format!(
                     "invalid execution status '{status}'"
                 )));
             }
@@ -363,7 +362,7 @@ impl TestService {
     ) -> Result<(), CoreError> {
         let result = test_execution::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!(
+            return Err(CoreError::not_found(format!(
                 "test execution {id} not found"
             )));
         }

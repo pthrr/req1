@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use req1_reqif::{
-    AttributeValue, AttributeValueBoolean, AttributeValueDate, AttributeValueDefinitionRef,
-    AttributeValueEnumeration, AttributeValueInteger, AttributeValueReal, AttributeValueString,
-    AttributeValueXhtml, AttrValDefRefInner, DatatypeDefinition, DatatypeDefinitionBoolean,
-    DatatypeDefinitionDate, DatatypeDefinitionEnumeration, DatatypeDefinitionInteger,
-    DatatypeDefinitionReal, DatatypeDefinitionString, DatatypeDefinitionXhtml, EnumValue,
-    EnumValueRefs, XhtmlContent,
+    AttrValDefRefInner, AttributeValue, AttributeValueBoolean, AttributeValueDate,
+    AttributeValueDefinitionRef, AttributeValueEnumeration, AttributeValueInteger,
+    AttributeValueReal, AttributeValueString, AttributeValueXhtml, DatatypeDefinition,
+    DatatypeDefinitionBoolean, DatatypeDefinitionDate, DatatypeDefinitionEnumeration,
+    DatatypeDefinitionInteger, DatatypeDefinitionReal, DatatypeDefinitionString,
+    DatatypeDefinitionXhtml, EnumValue, EnumValueRefs, XhtmlContent,
 };
 use serde_json::json;
 
@@ -111,9 +111,7 @@ pub fn reqif_attr_value_to_json(
                 })
                 .unwrap_or_default();
             if names.len() == 1 {
-                names
-                    .first()
-                    .map_or_else(|| json!([]), |n| json!(n))
+                names.first().map_or_else(|| json!([]), |n| json!(n))
             } else {
                 json!(names)
             }
@@ -260,7 +258,10 @@ pub fn extract_enum_values(datatypes: &[DatatypeDefinition]) -> HashMap<String, 
             && let Some(sv) = &e.specified_values
         {
             for ev in &sv.values {
-                let name = ev.long_name.clone().unwrap_or_else(|| ev.identifier.clone());
+                let name = ev
+                    .long_name
+                    .clone()
+                    .unwrap_or_else(|| ev.identifier.clone());
                 let _ = map.insert(ev.identifier.clone(), name);
             }
         }
@@ -282,12 +283,12 @@ pub fn enum_values_to_json(values: &[EnumValue]) -> serde_json::Value {
 mod tests {
     use super::*;
     use req1_reqif::{
-        AttributeValueBoolean, AttributeValueDate, AttributeValueDefinitionRef,
-        AttributeValueEnumeration, AttributeValueInteger, AttributeValueReal,
-        AttributeValueString, AttributeValueXhtml, AttrValDefRefInner, DatatypeDefinition,
-        DatatypeDefinitionBoolean, DatatypeDefinitionDate, DatatypeDefinitionEnumeration,
-        DatatypeDefinitionInteger, DatatypeDefinitionReal, DatatypeDefinitionString,
-        DatatypeDefinitionXhtml, EnumValue, EnumValueRefs, SpecifiedValues, XhtmlContent,
+        AttrValDefRefInner, AttributeValueBoolean, AttributeValueDate, AttributeValueDefinitionRef,
+        AttributeValueEnumeration, AttributeValueInteger, AttributeValueReal, AttributeValueString,
+        AttributeValueXhtml, DatatypeDefinition, DatatypeDefinitionBoolean, DatatypeDefinitionDate,
+        DatatypeDefinitionEnumeration, DatatypeDefinitionInteger, DatatypeDefinitionReal,
+        DatatypeDefinitionString, DatatypeDefinitionXhtml, EnumValue, EnumValueRefs,
+        SpecifiedValues, XhtmlContent,
     };
 
     #[test]
@@ -373,7 +374,13 @@ mod tests {
     #[test]
     fn test_entity_datatype_to_reqif_roundtrip() {
         let types = [
-            "boolean", "date", "enum", "integer", "float", "string", "rich_text",
+            "boolean",
+            "date",
+            "enum",
+            "integer",
+            "float",
+            "string",
+            "rich_text",
         ];
         for t in &types {
             let def = entity_datatype_to_reqif(t, &format!("test-{t}"));
@@ -411,10 +418,7 @@ mod tests {
                 inner: AttrValDefRefInner::Real("ad-1".into()),
             },
         });
-        assert_eq!(
-            reqif_attr_value_to_json(&val, &HashMap::new()),
-            json!(95.5)
-        );
+        assert_eq!(reqif_attr_value_to_json(&val, &HashMap::new()), json!(95.5));
     }
 
     #[test]

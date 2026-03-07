@@ -1,8 +1,9 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Order, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
+use utoipa::IntoParams;
 use uuid::Uuid;
 
 use entity::notification;
@@ -10,7 +11,7 @@ use entity::notification;
 use crate::PaginatedResponse;
 use crate::error::CoreError;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct ListNotificationsFilter {
     #[serde(default)]
     pub offset: u64,
@@ -53,10 +54,7 @@ impl NotificationService {
         })
     }
 
-    pub async fn unread_count(
-        db: &impl ConnectionTrait,
-        user_id: Uuid,
-    ) -> Result<u64, CoreError> {
+    pub async fn unread_count(db: &impl ConnectionTrait, user_id: Uuid) -> Result<u64, CoreError> {
         let count = notification::Entity::find()
             .filter(notification::Column::UserId.eq(user_id))
             .filter(notification::Column::Read.eq(false))
@@ -73,10 +71,10 @@ impl NotificationService {
         let existing = notification::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("notification {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("notification {id} not found")))?;
 
         if existing.user_id != user_id {
-            return Err(CoreError::Unauthorized(
+            return Err(CoreError::unauthorized(
                 "cannot mark another user's notification".to_owned(),
             ));
         }
@@ -87,12 +85,12 @@ impl NotificationService {
         Ok(result)
     }
 
-    pub async fn mark_all_read(
-        db: &impl ConnectionTrait,
-        user_id: Uuid,
-    ) -> Result<u64, CoreError> {
+    pub async fn mark_all_read(db: &impl ConnectionTrait, user_id: Uuid) -> Result<u64, CoreError> {
         let result = notification::Entity::update_many()
-            .col_expr(notification::Column::Read, sea_orm::sea_query::Expr::value(true))
+            .col_expr(
+                notification::Column::Read,
+                sea_orm::sea_query::Expr::value(true),
+            )
             .filter(notification::Column::UserId.eq(user_id))
             .filter(notification::Column::Read.eq(false))
             .exec(db)

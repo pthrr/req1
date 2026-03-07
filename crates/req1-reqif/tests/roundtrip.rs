@@ -36,7 +36,13 @@ fn parse_minimal_header() {
 fn parse_minimal_spec_objects() {
     let xml = include_str!("fixtures/minimal.reqif");
     let doc = from_xml_str(xml).unwrap();
-    let objects = &doc.core_content.req_if_content.spec_objects.as_ref().unwrap().objects;
+    let objects = &doc
+        .core_content
+        .req_if_content
+        .spec_objects
+        .as_ref()
+        .unwrap()
+        .objects;
     assert_eq!(objects.len(), 1);
     assert_eq!(objects[0].identifier, "so-1");
     assert_eq!(objects[0].long_name.as_deref(), Some("REQ-001"));
@@ -46,7 +52,13 @@ fn parse_minimal_spec_objects() {
 fn parse_minimal_hierarchy() {
     let xml = include_str!("fixtures/minimal.reqif");
     let doc = from_xml_str(xml).unwrap();
-    let specs = &doc.core_content.req_if_content.specifications.as_ref().unwrap().specifications;
+    let specs = &doc
+        .core_content
+        .req_if_content
+        .specifications
+        .as_ref()
+        .unwrap()
+        .specifications;
     assert_eq!(specs.len(), 1);
     assert_eq!(specs[0].identifier, "spec-1");
     let children = specs[0].children.as_ref().unwrap();
@@ -68,7 +80,13 @@ fn parse_all_types_attribute_values() {
 
     let xml = include_str!("fixtures/all_types.reqif");
     let doc = from_xml_str(xml).unwrap();
-    let obj = &doc.core_content.req_if_content.spec_objects.as_ref().unwrap().objects[0];
+    let obj = &doc
+        .core_content
+        .req_if_content
+        .spec_objects
+        .as_ref()
+        .unwrap()
+        .objects[0];
     let vals = &obj.values.as_ref().unwrap().values;
     assert_eq!(vals.len(), 7);
 
@@ -77,7 +95,9 @@ fn parse_all_types_attribute_values() {
     // Check integer
     assert!(matches!(&vals[3], AttributeValue::Integer(v) if v.the_value == 42));
     // Check real
-    assert!(matches!(&vals[4], AttributeValue::Real(v) if (v.the_value - 95.5).abs() < f64::EPSILON));
+    assert!(
+        matches!(&vals[4], AttributeValue::Real(v) if (v.the_value - 95.5).abs() < f64::EPSILON)
+    );
     // Check string
     assert!(
         matches!(&vals[5], AttributeValue::Str(v) if v.the_value == "System shall handle all types.")
@@ -88,7 +108,13 @@ fn parse_all_types_attribute_values() {
 fn parse_all_types_relations() {
     let xml = include_str!("fixtures/all_types.reqif");
     let doc = from_xml_str(xml).unwrap();
-    let rels = &doc.core_content.req_if_content.spec_relations.as_ref().unwrap().relations;
+    let rels = &doc
+        .core_content
+        .req_if_content
+        .spec_relations
+        .as_ref()
+        .unwrap()
+        .relations;
     assert_eq!(rels.len(), 1);
     assert_eq!(rels[0].source.spec_object_ref, "so-1");
     assert_eq!(rels[0].target.spec_object_ref, "so-2");
@@ -98,7 +124,13 @@ fn parse_all_types_relations() {
 fn parse_all_types_nested_hierarchy() {
     let xml = include_str!("fixtures/all_types.reqif");
     let doc = from_xml_str(xml).unwrap();
-    let spec = &doc.core_content.req_if_content.specifications.as_ref().unwrap().specifications[0];
+    let spec = &doc
+        .core_content
+        .req_if_content
+        .specifications
+        .as_ref()
+        .unwrap()
+        .specifications[0];
     let top = &spec.children.as_ref().unwrap().hierarchies;
     assert_eq!(top.len(), 2);
     // First hierarchy has nested child

@@ -31,3 +31,4 @@ cron = { workspace = true }
 docx-rs = { workspace = true }
 zip = { workspace = true }
 quick-xml = { workspace = true }
+utoipa = { workspace = true }

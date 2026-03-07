@@ -1,5 +1,9 @@
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Order, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set,
+};
 use serde::Deserialize;
+use utoipa::IntoParams;
 use uuid::Uuid;
 
 use entity::audit_log;
@@ -11,7 +15,7 @@ const fn default_limit() -> u64 {
     50
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct AuditLogFilter {
     #[serde(default)]
     pub offset: u64,
@@ -54,8 +58,8 @@ impl AuditService {
         db: &impl ConnectionTrait,
         filter: AuditLogFilter,
     ) -> Result<PaginatedResponse<audit_log::Model>, CoreError> {
-        let mut select = audit_log::Entity::find()
-            .order_by(audit_log::Column::CreatedAt, Order::Desc);
+        let mut select =
+            audit_log::Entity::find().order_by(audit_log::Column::CreatedAt, Order::Desc);
 
         if let Some(user_id) = filter.user_id {
             select = select.filter(audit_log::Column::UserId.eq(user_id));

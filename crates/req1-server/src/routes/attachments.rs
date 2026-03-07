@@ -8,6 +8,7 @@ use axum::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
@@ -35,7 +36,12 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-async fn list_attachments(
+#[utoipa::path(get, path = "/api/v1/objects/{object_id}/attachments", tag = "Attachments",
+    security(("bearer_auth" = [])),
+    params(("object_id" = Uuid, Path, description = "Object ID")),
+    responses((status = 200, body = Vec<entity::attachment::Model>))
+)]
+pub(crate) async fn list_attachments(
     State(state): State<AppState>,
     Path(object_id): Path<Uuid>,
 ) -> Result<Json<Vec<entity::attachment::Model>>, AppError> {
@@ -43,7 +49,13 @@ async fn list_attachments(
     Ok(Json(items))
 }
 
-async fn upload_attachment(
+#[utoipa::path(post, path = "/api/v1/objects/{object_id}/attachments", tag = "Attachments",
+    security(("bearer_auth" = [])),
+    params(("object_id" = Uuid, Path, description = "Object ID")),
+    request_body(content_type = "multipart/form-data", content = String),
+    responses((status = 201, body = entity::attachment::Model))
+)]
+pub(crate) async fn upload_attachment(
     State(state): State<AppState>,
     Path(object_id): Path<Uuid>,
     mut multipart: Multipart,
@@ -51,13 +63,10 @@ async fn upload_attachment(
     let field = multipart
         .next_field()
         .await
-        .map_err(|e| AppError::BadRequest(format!("multipart error: {e}")))?
-        .ok_or_else(|| AppError::BadRequest("no file field in request".to_owned()))?;
+        .map_err(|e| AppError::bad_request(format!("multipart error: {e}")))?
+        .ok_or_else(|| AppError::bad_request("no file field in request".to_owned()))?;
 
-    let file_name = field
-        .file_name()
-        .unwrap_or("upload")
-        .to_owned();
+    let file_name = field.file_name().unwrap_or("upload").to_owned();
     let content_type = field
         .content_type()
         .unwrap_or("application/octet-stream")
@@ -65,10 +74,10 @@ async fn upload_attachment(
     let data = field
         .bytes()
         .await
-        .map_err(|e| AppError::BadRequest(format!("failed to read file: {e}")))?;
+        .map_err(|e| AppError::bad_request(format!("failed to read file: {e}")))?;
 
-    let upload_dir = std::env::var("REQ1_UPLOAD_DIR")
-        .unwrap_or_else(|_| DEFAULT_UPLOAD_DIR.to_owned());
+    let upload_dir =
+        std::env::var("REQ1_UPLOAD_DIR").unwrap_or_else(|_| DEFAULT_UPLOAD_DIR.to_owned());
 
     let result = AttachmentService::create(
         &state.db,
@@ -83,7 +92,16 @@ async fn upload_attachment(
     Ok((StatusCode::CREATED, Json(result)))
 }
 
-async fn download_attachment(
+#[utoipa::path(get, path = "/api/v1/objects/{object_id}/attachments/{id}/download",
+    tag = "Attachments",
+    security(("bearer_auth" = [])),
+    params(
+        ("object_id" = Uuid, Path, description = "Object ID"),
+        ("id" = Uuid, Path, description = "Attachment ID"),
+    ),
+    responses((status = 200, content_type = "application/octet-stream", body = Vec<u8>))
+)]
+pub(crate) async fn download_attachment(
     State(state): State<AppState>,
     Path((_object_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Response, AppError> {
@@ -91,7 +109,7 @@ async fn download_attachment(
     let data = AttachmentService::read_file(&attachment.storage_path)?;
 
     if !AttachmentService::verify_integrity(&attachment, &data) {
-        return Err(AppError::Internal(format!(
+        return Err(AppError::internal(format!(
             "integrity check failed for attachment {}: SHA-256 mismatch",
             attachment.id
         )));
@@ -112,8 +130,8 @@ async fn download_attachment(
     Ok((headers, Body::from(data)).into_response())
 }
 
-#[derive(Serialize)]
-struct VerifyResult {
+#[derive(Serialize, ToSchema)]
+pub(crate) struct VerifyResult {
     attachment_id: Uuid,
     file_name: String,
     expected_sha256: Option<String>,
@@ -121,7 +139,16 @@ struct VerifyResult {
     valid: bool,
 }
 
-async fn verify_attachment(
+#[utoipa::path(get, path = "/api/v1/objects/{object_id}/attachments/{id}/verify",
+    tag = "Attachments",
+    security(("bearer_auth" = [])),
+    params(
+        ("object_id" = Uuid, Path, description = "Object ID"),
+        ("id" = Uuid, Path, description = "Attachment ID"),
+    ),
+    responses((status = 200, body = VerifyResult))
+)]
+pub(crate) async fn verify_attachment(
     State(state): State<AppState>,
     Path((_object_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<VerifyResult>, AppError> {
@@ -146,7 +173,15 @@ async fn verify_attachment(
     }))
 }
 
-async fn delete_attachment(
+#[utoipa::path(delete, path = "/api/v1/objects/{object_id}/attachments/{id}", tag = "Attachments",
+    security(("bearer_auth" = [])),
+    params(
+        ("object_id" = Uuid, Path, description = "Object ID"),
+        ("id" = Uuid, Path, description = "Attachment ID"),
+    ),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_attachment(
     State(state): State<AppState>,
     Path((_object_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, AppError> {

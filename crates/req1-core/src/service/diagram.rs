@@ -1,8 +1,9 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Order, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use entity::diagram;
@@ -10,15 +11,13 @@ use entity::diagram;
 use crate::PaginatedResponse;
 use crate::error::CoreError;
 
-const VALID_DIAGRAM_TYPES: &[&str] = &[
-    "use_case", "sequence", "class", "flowchart", "state", "er",
-];
+const VALID_DIAGRAM_TYPES: &[&str] = &["use_case", "sequence", "class", "flowchart", "state", "er"];
 
 const fn default_limit() -> u64 {
     50
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateDiagramInput {
     #[serde(default)]
     pub module_id: Uuid,
@@ -30,7 +29,7 @@ pub struct CreateDiagramInput {
     pub created_by: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateDiagramInput {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -39,7 +38,7 @@ pub struct UpdateDiagramInput {
     pub linked_object_ids: Option<Vec<Uuid>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct ListDiagramsFilter {
     #[serde(default)]
     pub offset: u64,
@@ -56,7 +55,7 @@ impl DiagramService {
     ) -> Result<diagram::Model, CoreError> {
         let dtype = input.diagram_type.as_deref().unwrap_or("use_case");
         if !VALID_DIAGRAM_TYPES.contains(&dtype) {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "invalid diagram_type '{dtype}', must be one of: {VALID_DIAGRAM_TYPES:?}"
             )));
         }
@@ -92,12 +91,12 @@ impl DiagramService {
         let existing = diagram::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("diagram {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("diagram {id} not found")))?;
 
         if let Some(ref dtype) = input.diagram_type
             && !VALID_DIAGRAM_TYPES.contains(&dtype.as_str())
         {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "invalid diagram_type '{dtype}', must be one of: {VALID_DIAGRAM_TYPES:?}"
             )));
         }
@@ -128,19 +127,16 @@ impl DiagramService {
     pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
         let result = diagram::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("diagram {id} not found")));
+            return Err(CoreError::not_found(format!("diagram {id} not found")));
         }
         Ok(())
     }
 
-    pub async fn get(
-        db: &impl ConnectionTrait,
-        id: Uuid,
-    ) -> Result<diagram::Model, CoreError> {
+    pub async fn get(db: &impl ConnectionTrait, id: Uuid) -> Result<diagram::Model, CoreError> {
         diagram::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("diagram {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("diagram {id} not found")))
     }
 
     pub async fn list(

@@ -1,5 +1,20 @@
+import type { components } from "./schema";
+
 const BASE_URL = "/api/v1";
 
+// Helper to reference generated schema types
+type Schemas = components["schemas"];
+
+// API responses always include all fields (Option<T> serializes as null, not absent).
+// openapi-typescript marks them as optional (?), so we strip the optionality recursively.
+type ApiModel<T> =
+  T extends (infer U)[]
+    ? ApiModel<U>[]
+    : T extends Record<string, unknown>
+      ? { [K in keyof T]-?: ApiModel<Exclude<T[K], undefined>> }
+      : T;
+
+// Generic paginated response (kept as generic; spec monomorphizes per type)
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
@@ -7,219 +22,107 @@ export interface PaginatedResponse<T> {
   limit: number;
 }
 
-export interface Module {
+// --- Entity types (generated from OpenAPI spec) ---
+// JSON column overrides: some JsonBinary columns have known frontend shapes
+// that the OpenAPI spec can't express (it uses generic `object`).
+export type Module = Omit<ApiModel<Schemas["Module"]>, "signature_config"> & {
+  signature_config: SignatureConfig;
+};
+export type AppUser = ApiModel<Schemas["AppUser"]>;
+export type Attachment = ApiModel<Schemas["Attachment"]>;
+export type AttributeDefinition = Omit<ApiModel<Schemas["AttributeDefinition"]>, "dependency_mapping"> & {
+  dependency_mapping: Record<string, string[]> | null;
+};
+export type Baseline = ApiModel<Schemas["Baseline"]>;
+export type BaselineEntry = ApiModel<Schemas["BaselineEntry"]>;
+export type BaselineSet = ApiModel<Schemas["BaselineSet"]>;
+export type ChangeProposal = Omit<ApiModel<Schemas["ChangeProposal"]>, "diff_data"> & {
+  diff_data: unknown;
+};
+export type Comment = ApiModel<Schemas["Comment"]>;
+export type Dashboard = ApiModel<Schemas["Dashboard"]>;
+export type DashboardWidget = ApiModel<Schemas["DashboardWidget"]>;
+export type Diagram = ApiModel<Schemas["Diagram"]>;
+export type ESignature = ApiModel<Schemas["ESignature"]>;
+export type Link = ApiModel<Schemas["Link"]>;
+export type LinkType = ApiModel<Schemas["LinkType"]>;
+export type Notification = ApiModel<Schemas["Notification"]>;
+export type ObjectHistory = ApiModel<Schemas["ObjectHistory"]>;
+export type ObjectType = ApiModel<Schemas["ObjectType"]>;
+export type Project = ApiModel<Schemas["Project"]>;
+export type ProjectTemplate = ApiModel<Schemas["ProjectTemplate"]>;
+export type ReviewAssignment = ApiModel<Schemas["ReviewAssignment"]>;
+export type ReviewComment = ApiModel<Schemas["ReviewComment"]>;
+export type ReviewPackage = ApiModel<Schemas["ReviewPackage"]>;
+export type Script = ApiModel<Schemas["Script"]>;
+export type ScriptExecution = ApiModel<Schemas["ScriptExecution"]>;
+export type TestCase = ApiModel<Schemas["TestCase"]>;
+export type TestExecution = ApiModel<Schemas["TestExecution"]>;
+export type View = Omit<ApiModel<Schemas["View"]>, "column_config" | "filter_config" | "sort_config"> & {
+  column_config: unknown;
+  filter_config: unknown;
+  sort_config: unknown;
+};
+export type Webhook = ApiModel<Schemas["Webhook"]>;
+export type Workspace = ApiModel<Schemas["Workspace"]>;
+
+// Renamed: frontend uses "ReqObject" to avoid collision with JS Object
+export type ReqObject = Omit<ApiModel<Schemas["Object"]>, "attributes" | "references_"> & {
+  attributes: Record<string, unknown> | null;
+  references_: unknown[];
+};
+// Renamed: frontend uses "AuditLogEntry" for the audit_log entity
+export type AuditLogEntry = Omit<ApiModel<Schemas["AuditLog"]>, "details"> & {
+  details: unknown | null;
+};
+
+// LifecycleModel needs hand-written type: states/transitions are typed JSON arrays
+// that utoipa represents as untyped objects
+export interface LifecycleModel {
   id: string;
-  project_id: string;
+  module_id: string;
   name: string;
   description: string | null;
-  prefix: string;
-  separator: string;
-  digits: number;
-  required_attributes: string[];
-  default_classification: string;
-  publish_template: string | null;
-  default_lifecycle_model_id: string | null;
-  signature_config: SignatureConfig;
+  initial_state: string;
+  states: Array<{ name: string; color?: string; description?: string }>;
+  transitions: Array<{ from: string; to: string }>;
   created_at: string;
   updated_at: string;
 }
 
+// --- DTO types (generated from OpenAPI spec) ---
+export type BaselineWithEntries = ApiModel<Schemas["BaselineWithEntries"]>;
+export type BaselineDiff = ApiModel<Schemas["BaselineDiff"]>;
+export type BaselineDiffEntry = ApiModel<Schemas["DiffEntry"]>;
+export type BaselineDiffModified = ApiModel<Schemas["DiffModified"]>;
+export type ValidationIssue = ApiModel<Schemas["ValidationIssue"]>;
+export type ValidationReport = ApiModel<Schemas["ValidationReport"]>;
+export type VotingSummary = ApiModel<Schemas["VotingSummary"]>;
+export type InstantiateResult = ApiModel<Schemas["InstantiateResult"]>;
+export type DocxPreviewResult = ApiModel<Schemas["DocxPreviewResult"]>;
+export type DocxImportResult = ApiModel<Schemas["DocxImportResult"]>;
+export type WidgetDataEntry = ApiModel<Schemas["WidgetDataEntry"]>;
+export type TestStatusCounts = ApiModel<Schemas["TestStatusCounts"]>;
+export type TestCoverageResponse = ApiModel<Schemas["TestCoverageResponse"]>;
+export type TestCaseStatusCounts = ApiModel<Schemas["TestCaseStatusCounts"]>;
+export type TestPriorityCounts = ApiModel<Schemas["TestPriorityCounts"]>;
+export type TestDashboardSummary = ApiModel<Schemas["TestDashboardSummary"]>;
+
+// --- Route-local types (generated from OpenAPI spec) ---
+export type MatrixObject = ApiModel<Schemas["MatrixObject"]>;
+export type MatrixCell = ApiModel<Schemas["MatrixCell"]>;
+export type TraceabilityMatrixResponse = ApiModel<Schemas["TraceabilityMatrixResponse"]>;
+export type CoverageResponse = ApiModel<Schemas["CoverageResponse"]>;
+export type ImpactObject = ApiModel<Schemas["ImpactObject"]>;
+export type ImpactEdge = ApiModel<Schemas["ImpactEdge"]>;
+export type ImpactResponse = ApiModel<Schemas["ImpactResponse"]>;
+export type LayoutEntry = ApiModel<Schemas["LayoutEntry"]>;
+export type BatchLayoutResponse = ApiModel<Schemas["BatchLayoutResponse"]>;
+
+// --- Frontend-only types (not in OpenAPI spec) ---
 export interface SignatureConfig {
   require_signature_transitions?: string[];
   require_four_eyes?: boolean;
-}
-
-export interface ReqObject {
-  id: string;
-  module_id: string;
-  parent_id: string | null;
-  position: number;
-  level: string;
-  heading: string | null;
-  body: string | null;
-  attributes: Record<string, unknown> | null;
-  current_version: number;
-  classification: string;
-  content_fingerprint: string;
-  reviewed_fingerprint: string | null;
-  reviewed_at: string | null;
-  reviewed_by: string | null;
-  references_: unknown[];
-  object_type_id: string | null;
-  lifecycle_state: string | null;
-  lifecycle_model_id: string | null;
-  source_object_id: string | null;
-  source_module_id: string | null;
-  is_placeholder: boolean;
-  deleted_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export function isReviewed(obj: ReqObject): boolean {
-  return obj.reviewed_fingerprint != null && obj.reviewed_fingerprint === obj.content_fingerprint;
-}
-
-export interface ObjectHistory {
-  id: number;
-  object_id: string;
-  module_id: string;
-  version: number;
-  attribute_values: Record<string, unknown> | null;
-  heading: string | null;
-  body: string | null;
-  changed_by: string | null;
-  changed_at: string;
-  change_type: string;
-}
-
-export interface LinkType {
-  id: string;
-  name: string;
-  description: string | null;
-  created_at: string;
-}
-
-export interface Link {
-  id: string;
-  source_object_id: string;
-  target_object_id: string;
-  link_type_id: string;
-  attributes: Record<string, unknown> | null;
-  suspect: boolean;
-  source_fingerprint: string;
-  target_fingerprint: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Baseline {
-  id: string;
-  module_id: string;
-  name: string;
-  description: string | null;
-  created_by: string | null;
-  created_at: string;
-  locked: boolean;
-  baseline_set_id: string | null;
-}
-
-export interface BaselineEntry {
-  baseline_id: string;
-  object_id: string;
-  version: number;
-}
-
-export interface BaselineWithEntries extends Baseline {
-  entries: BaselineEntry[];
-}
-
-export interface BaselineDiffEntry {
-  object_id: string;
-  version: number;
-  heading: string | null;
-  body: string | null;
-  attributes: Record<string, unknown> | null;
-}
-
-export interface BaselineDiffModified {
-  object_id: string;
-  version_a: number;
-  version_b: number;
-  heading_a: string | null;
-  heading_b: string | null;
-  body_a: string | null;
-  body_b: string | null;
-  attributes_a: Record<string, unknown> | null;
-  attributes_b: Record<string, unknown> | null;
-}
-
-export interface BaselineDiff {
-  baseline_a: string;
-  baseline_b: string;
-  added: BaselineDiffEntry[];
-  removed: BaselineDiffEntry[];
-  modified: BaselineDiffModified[];
-}
-
-export interface Workspace {
-  id: string;
-  name: string;
-  description: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Project {
-  id: string;
-  workspace_id: string;
-  name: string;
-  description: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AttributeDefinition {
-  id: string;
-  module_id: string | null;
-  name: string;
-  data_type: string;
-  default_value: string | null;
-  enum_values: string[] | null;
-  multi_select: boolean;
-  depends_on: string | null;
-  dependency_mapping: Record<string, string[]> | null;
-  created_at: string;
-}
-
-export interface MatrixObject {
-  id: string;
-  heading: string | null;
-  position: number;
-}
-
-export interface MatrixCell {
-  source_id: string;
-  target_id: string;
-  link_id: string;
-  suspect: boolean;
-}
-
-export interface TraceabilityMatrixResponse {
-  source_objects: MatrixObject[];
-  target_objects: MatrixObject[];
-  cells: MatrixCell[];
-}
-
-export interface Script {
-  id: string;
-  module_id: string;
-  name: string;
-  script_type: string;
-  hook_point: string | null;
-  source_code: string;
-  enabled: boolean;
-  priority: number;
-  cron_expression: string | null;
-  last_run_at: string | null;
-  next_run_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ValidationIssue {
-  rule: string;
-  severity: string;
-  object_id: string | null;
-  link_id: string | null;
-  message: string;
-}
-
-export interface ValidationReport {
-  module_id: string;
-  issues: ValidationIssue[];
-  object_count: number;
-  link_count: number;
 }
 
 export interface ScriptTestResult {
@@ -239,377 +142,6 @@ export interface ScriptExecuteResult {
   mutations_applied: number;
 }
 
-export interface View {
-  id: string;
-  module_id: string;
-  name: string;
-  column_config: unknown;
-  filter_config: unknown;
-  sort_config: unknown;
-  is_default: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ObjectType {
-  id: string;
-  module_id: string;
-  name: string;
-  description: string | null;
-  default_classification: string;
-  required_attributes: unknown;
-  attribute_schema: unknown;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Comment {
-  id: string;
-  object_id: string;
-  author_id: string | null;
-  body: string;
-  mentioned_user_ids: string[];
-  resolved: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AppUser {
-  id: string;
-  email: string;
-  display_name: string;
-  role: string;
-  active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ReviewPackage {
-  id: string;
-  module_id: string;
-  name: string;
-  description: string | null;
-  status: string;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ReviewAssignment {
-  id: string;
-  package_id: string;
-  reviewer_id: string | null;
-  status: string;
-  comment: string | null;
-  signed_at: string | null;
-  created_at: string;
-}
-
-export interface ReviewComment {
-  id: string;
-  package_id: string;
-  author_id: string | null;
-  body: string;
-  mentioned_user_ids: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface VotingSummary {
-  package_id: string;
-  package_name: string;
-  package_status: string;
-  total_assignments: number;
-  approved: number;
-  rejected: number;
-  abstained: number;
-  pending: number;
-}
-
-export interface ChangeProposal {
-  id: string;
-  module_id: string;
-  title: string;
-  description: string | null;
-  status: string;
-  author_id: string | null;
-  diff_data: unknown;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface BaselineSet {
-  id: string;
-  name: string;
-  version: string;
-  description: string | null;
-  created_by: string | null;
-  created_at: string;
-}
-
-export interface Attachment {
-  id: string;
-  object_id: string;
-  file_name: string;
-  content_type: string;
-  size_bytes: number;
-  storage_path: string;
-  sha256: string | null;
-  created_at: string;
-}
-
-export interface Webhook {
-  id: string;
-  module_id: string;
-  name: string;
-  url: string;
-  secret: string | null;
-  events: string;
-  active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface LifecycleModel {
-  id: string;
-  module_id: string;
-  name: string;
-  description: string | null;
-  initial_state: string;
-  states: Array<{ name: string; color?: string; description?: string }>;
-  transitions: Array<{ from: string; to: string }>;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ImpactObject {
-  id: string;
-  heading: string | null;
-  level: string;
-  depth: number;
-  link_type: string | null;
-  module_id: string;
-}
-
-export interface ImpactEdge {
-  source_id: string;
-  target_id: string;
-  link_type: string | null;
-  suspect: boolean;
-}
-
-export interface ImpactResponse {
-  root_id: string;
-  direction: string;
-  max_depth: number;
-  objects: ImpactObject[];
-  edges: ImpactEdge[];
-}
-
-export interface CoverageResponse {
-  total_objects: number;
-  with_upstream: number;
-  with_downstream: number;
-  with_any_link: number;
-  upstream_pct: number;
-  downstream_pct: number;
-  any_link_pct: number;
-}
-
-export interface LayoutEntry {
-  object_id: string;
-  value: string;
-}
-
-export interface BatchLayoutResponse {
-  results: LayoutEntry[];
-}
-
-export interface TestCase {
-  id: string;
-  module_id: string;
-  name: string;
-  description: string | null;
-  preconditions: string | null;
-  expected_result: string | null;
-  test_type: string;
-  priority: string;
-  status: string;
-  requirement_ids: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface TestExecution {
-  id: string;
-  test_case_id: string;
-  status: string;
-  executor: string | null;
-  executed_at: string | null;
-  duration_ms: number | null;
-  evidence: string | null;
-  environment: string | null;
-  created_at: string;
-}
-
-export interface TestStatusCounts {
-  passed: number;
-  failed: number;
-  blocked: number;
-  skipped: number;
-  not_run: number;
-}
-
-export interface TestCoverageResponse {
-  total_requirements: number;
-  requirements_with_tests: number;
-  requirements_with_passing_tests: number;
-  test_coverage_pct: number;
-  pass_coverage_pct: number;
-  total_test_cases: number;
-  by_status: TestStatusCounts;
-}
-
-export interface TestCaseStatusCounts {
-  draft: number;
-  ready: number;
-  deprecated: number;
-}
-
-export interface TestPriorityCounts {
-  critical: number;
-  high: number;
-  medium: number;
-  low: number;
-}
-
-export interface TestDashboardSummary {
-  total_test_cases: number;
-  by_test_status: TestCaseStatusCounts;
-  by_priority: TestPriorityCounts;
-  recent_executions: TestExecution[];
-  coverage: TestCoverageResponse;
-}
-
-export interface Diagram {
-  id: string;
-  module_id: string;
-  name: string;
-  description: string | null;
-  diagram_type: string;
-  source_code: string;
-  linked_object_ids: string[];
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ScriptExecution {
-  id: string;
-  script_id: string;
-  status: string;
-  started_at: string;
-  finished_at: string | null;
-  duration_ms: number | null;
-  output: string | null;
-  error_message: string | null;
-  created_at: string;
-}
-
-export interface AuditLogEntry {
-  id: number;
-  user_id: string | null;
-  action: string;
-  entity_type: string;
-  entity_id: string | null;
-  details: unknown | null;
-  ip_address: string | null;
-  created_at: string;
-}
-
-export interface Notification {
-  id: string;
-  user_id: string;
-  notification_type: string;
-  title: string;
-  body: string;
-  entity_type: string;
-  entity_id: string | null;
-  read: boolean;
-  created_at: string;
-}
-
-export interface ESignature {
-  id: string;
-  user_id: string;
-  entity_type: string;
-  entity_id: string;
-  meaning: string;
-  signature_hash: string;
-  ip_address: string | null;
-  created_at: string;
-}
-
-export interface Dashboard {
-  id: string;
-  workspace_id: string;
-  name: string;
-  description: string | null;
-  layout: unknown;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface DashboardWidget {
-  id: string;
-  dashboard_id: string;
-  widget_type: string;
-  title: string;
-  config: Record<string, unknown>;
-  position_x: number;
-  position_y: number;
-  width: number;
-  height: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface WidgetDataEntry {
-  label: string;
-  value: number;
-  extra: Record<string, unknown> | null;
-}
-
-export interface ProjectTemplate {
-  id: string;
-  name: string;
-  description: string | null;
-  standard: string | null;
-  version: string | null;
-  template_data: unknown;
-  is_builtin: boolean;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface InstantiateResult {
-  project_id: string;
-  modules_created: number;
-}
-
-export interface DocxPreviewResult {
-  styles: Array<{ style_id: string; sample_text: string; count: number }>;
-  paragraph_count: number;
-}
-
-export interface DocxImportResult {
-  objects_created: number;
-  objects_updated: number;
-  paragraphs_skipped: number;
-}
-
 export interface FormLayout {
   sections: FormSection[];
 }
@@ -626,6 +158,10 @@ export interface FormField {
   order: number;
   width?: string;
   required?: boolean;
+}
+
+export function isReviewed(obj: ReqObject): boolean {
+  return obj.reviewed_fingerprint != null && obj.reviewed_fingerprint === obj.content_fingerprint;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

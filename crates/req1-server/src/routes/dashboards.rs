@@ -34,21 +34,21 @@ pub fn routes() -> Router<AppState> {
         )
         .route(
             "/dashboards/{dashboard_id}/widgets/{id}",
-            get(get_widget)
-                .patch(update_widget)
-                .delete(delete_widget),
+            get(get_widget).patch(update_widget).delete(delete_widget),
         )
         .route(
             "/dashboards/{dashboard_id}/widgets/{id}/data",
             get(get_widget_data),
         )
-        .route(
-            "/dashboards/{dashboard_id}/export/pdf",
-            get(export_pdf),
-        )
+        .route("/dashboards/{dashboard_id}/export/pdf", get(export_pdf))
 }
 
-async fn list_dashboards(
+#[utoipa::path(get, path = "/api/v1/workspaces/{workspace_id}/dashboards", tag = "Dashboards",
+    security(("bearer_auth" = [])),
+    params(("workspace_id" = Uuid, Path, description = "Workspace ID")),
+    responses((status = 200, body = Vec<entity::dashboard::Model>))
+)]
+pub(crate) async fn list_dashboards(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
 ) -> Result<Json<Vec<entity::dashboard::Model>>, AppError> {
@@ -56,7 +56,13 @@ async fn list_dashboards(
     Ok(Json(items))
 }
 
-async fn create_dashboard(
+#[utoipa::path(post, path = "/api/v1/workspaces/{workspace_id}/dashboards", tag = "Dashboards",
+    security(("bearer_auth" = [])),
+    params(("workspace_id" = Uuid, Path, description = "Workspace ID")),
+    request_body = CreateDashboardInput,
+    responses((status = 201, body = entity::dashboard::Model))
+)]
+pub(crate) async fn create_dashboard(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
     Extension(auth_user): Extension<AuthUser>,
@@ -71,7 +77,16 @@ async fn create_dashboard(
     Ok((StatusCode::CREATED, Json(result)))
 }
 
-async fn get_dashboard(
+#[utoipa::path(get, path = "/api/v1/workspaces/{workspace_id}/dashboards/{id}",
+    tag = "Dashboards",
+    security(("bearer_auth" = [])),
+    params(
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+        ("id" = Uuid, Path, description = "Dashboard ID"),
+    ),
+    responses((status = 200, body = entity::dashboard::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_dashboard(
     State(state): State<AppState>,
     Path((_workspace_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<entity::dashboard::Model>, AppError> {
@@ -79,7 +94,17 @@ async fn get_dashboard(
     Ok(Json(result))
 }
 
-async fn update_dashboard(
+#[utoipa::path(patch, path = "/api/v1/workspaces/{workspace_id}/dashboards/{id}",
+    tag = "Dashboards",
+    security(("bearer_auth" = [])),
+    params(
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+        ("id" = Uuid, Path, description = "Dashboard ID"),
+    ),
+    request_body = UpdateDashboardInput,
+    responses((status = 200, body = entity::dashboard::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn update_dashboard(
     State(state): State<AppState>,
     Path((_workspace_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateDashboardInput>,
@@ -88,7 +113,16 @@ async fn update_dashboard(
     Ok(Json(result))
 }
 
-async fn delete_dashboard(
+#[utoipa::path(delete, path = "/api/v1/workspaces/{workspace_id}/dashboards/{id}",
+    tag = "Dashboards",
+    security(("bearer_auth" = [])),
+    params(
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+        ("id" = Uuid, Path, description = "Dashboard ID"),
+    ),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_dashboard(
     State(state): State<AppState>,
     Path((_workspace_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, AppError> {
@@ -96,7 +130,12 @@ async fn delete_dashboard(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn list_widgets(
+#[utoipa::path(get, path = "/api/v1/dashboards/{dashboard_id}/widgets", tag = "Dashboards",
+    security(("bearer_auth" = [])),
+    params(("dashboard_id" = Uuid, Path, description = "Dashboard ID")),
+    responses((status = 200, body = Vec<entity::dashboard_widget::Model>))
+)]
+pub(crate) async fn list_widgets(
     State(state): State<AppState>,
     Path(dashboard_id): Path<Uuid>,
 ) -> Result<Json<Vec<entity::dashboard_widget::Model>>, AppError> {
@@ -104,7 +143,13 @@ async fn list_widgets(
     Ok(Json(items))
 }
 
-async fn create_widget(
+#[utoipa::path(post, path = "/api/v1/dashboards/{dashboard_id}/widgets", tag = "Dashboards",
+    security(("bearer_auth" = [])),
+    params(("dashboard_id" = Uuid, Path, description = "Dashboard ID")),
+    request_body = CreateWidgetInput,
+    responses((status = 201, body = entity::dashboard_widget::Model))
+)]
+pub(crate) async fn create_widget(
     State(state): State<AppState>,
     Path(dashboard_id): Path<Uuid>,
     Json(body): Json<CreateWidgetInput>,
@@ -117,7 +162,18 @@ async fn create_widget(
     Ok((StatusCode::CREATED, Json(result)))
 }
 
-async fn get_widget(
+#[utoipa::path(get, path = "/api/v1/dashboards/{dashboard_id}/widgets/{id}", tag = "Dashboards",
+    security(("bearer_auth" = [])),
+    params(
+        ("dashboard_id" = Uuid, Path, description = "Dashboard ID"),
+        ("id" = Uuid, Path, description = "Widget ID"),
+    ),
+    responses(
+        (status = 200, body = entity::dashboard_widget::Model),
+        (status = 404, description = "Not found"),
+    )
+)]
+pub(crate) async fn get_widget(
     State(state): State<AppState>,
     Path((_dashboard_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<entity::dashboard_widget::Model>, AppError> {
@@ -125,7 +181,19 @@ async fn get_widget(
     Ok(Json(result))
 }
 
-async fn update_widget(
+#[utoipa::path(patch, path = "/api/v1/dashboards/{dashboard_id}/widgets/{id}", tag = "Dashboards",
+    security(("bearer_auth" = [])),
+    params(
+        ("dashboard_id" = Uuid, Path, description = "Dashboard ID"),
+        ("id" = Uuid, Path, description = "Widget ID"),
+    ),
+    request_body = UpdateWidgetInput,
+    responses(
+        (status = 200, body = entity::dashboard_widget::Model),
+        (status = 404, description = "Not found"),
+    )
+)]
+pub(crate) async fn update_widget(
     State(state): State<AppState>,
     Path((_dashboard_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateWidgetInput>,
@@ -134,7 +202,15 @@ async fn update_widget(
     Ok(Json(result))
 }
 
-async fn delete_widget(
+#[utoipa::path(delete, path = "/api/v1/dashboards/{dashboard_id}/widgets/{id}", tag = "Dashboards",
+    security(("bearer_auth" = [])),
+    params(
+        ("dashboard_id" = Uuid, Path, description = "Dashboard ID"),
+        ("id" = Uuid, Path, description = "Widget ID"),
+    ),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_widget(
     State(state): State<AppState>,
     Path((_dashboard_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, AppError> {
@@ -142,7 +218,16 @@ async fn delete_widget(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn get_widget_data(
+#[utoipa::path(get, path = "/api/v1/dashboards/{dashboard_id}/widgets/{id}/data",
+    tag = "Dashboards",
+    security(("bearer_auth" = [])),
+    params(
+        ("dashboard_id" = Uuid, Path, description = "Dashboard ID"),
+        ("id" = Uuid, Path, description = "Widget ID"),
+    ),
+    responses((status = 200, body = Vec<req1_core::service::dashboard::WidgetDataEntry>))
+)]
+pub(crate) async fn get_widget_data(
     State(state): State<AppState>,
     Path((_dashboard_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Vec<req1_core::service::dashboard::WidgetDataEntry>>, AppError> {
@@ -150,7 +235,15 @@ async fn get_widget_data(
     Ok(Json(data))
 }
 
-async fn export_pdf(
+#[utoipa::path(get, path = "/api/v1/dashboards/{dashboard_id}/export/pdf", tag = "Dashboards",
+    security(("bearer_auth" = [])),
+    params(("dashboard_id" = Uuid, Path, description = "Dashboard ID")),
+    responses(
+        (status = 200, description = "PDF file", content_type = "application/pdf"),
+        (status = 500, description = "PDF generation failed"),
+    )
+)]
+pub(crate) async fn export_pdf(
     State(state): State<AppState>,
     Path(dashboard_id): Path<Uuid>,
 ) -> Result<Response, AppError> {
@@ -181,11 +274,9 @@ async fn export_pdf(
     html.push_str("</body></html>");
 
     // Try rendering to PDF using same approach as PublishService
-    let pdf_result = tokio::task::spawn_blocking(move || {
-        try_wkhtmltopdf_raw(&html)
-    })
-    .await
-    .map_err(|e| AppError::Internal(format!("pdf task error: {e}")))?;
+    let pdf_result = tokio::task::spawn_blocking(move || try_wkhtmltopdf_raw(&html))
+        .await
+        .map_err(|e| AppError::internal(format!("pdf task error: {e}")))?;
 
     match pdf_result {
         Ok(pdf_bytes) => {
@@ -200,7 +291,7 @@ async fn export_pdf(
             );
             Ok((headers, Body::from(pdf_bytes)).into_response())
         }
-        Err(_) => Err(AppError::Internal(
+        Err(_) => Err(AppError::internal(
             "PDF generation failed. Install wkhtmltopdf.".to_owned(),
         )),
     }

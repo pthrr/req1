@@ -1,5 +1,6 @@
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::{
@@ -8,26 +9,28 @@ use entity::{
 
 use crate::error::CoreError;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateTemplateInput {
     pub name: String,
     pub description: Option<String>,
     pub standard: Option<String>,
     pub version: Option<String>,
+    #[schema(value_type = Object)]
     pub template_data: serde_json::Value,
     pub created_by: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateTemplateInput {
     pub name: Option<String>,
     pub description: Option<String>,
     pub standard: Option<String>,
     pub version: Option<String>,
+    #[schema(value_type = Option<Object>)]
     pub template_data: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct InstantiateInput {
     pub workspace_id: Uuid,
     pub project_name: String,
@@ -35,7 +38,7 @@ pub struct InstantiateInput {
     pub include_seed_objects: Option<bool>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct InstantiateResult {
     pub project_id: Uuid,
     pub modules_created: usize,
@@ -82,7 +85,7 @@ impl ProjectTemplateService {
         project_template::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("project template {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("project template {id} not found")))
     }
 
     pub async fn update(
@@ -93,7 +96,7 @@ impl ProjectTemplateService {
         let existing = project_template::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("project template {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("project template {id} not found")))?;
 
         let mut active: project_template::ActiveModel = existing.into();
         if let Some(name) = input.name {
@@ -121,17 +124,17 @@ impl ProjectTemplateService {
         let existing = project_template::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("project template {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("project template {id} not found")))?;
 
         if existing.is_builtin {
-            return Err(CoreError::BadRequest(
+            return Err(CoreError::bad_request(
                 "cannot delete a built-in template".to_owned(),
             ));
         }
 
         let result = project_template::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!(
+            return Err(CoreError::not_found(format!(
                 "project template {id} not found"
             )));
         }
@@ -147,7 +150,7 @@ impl ProjectTemplateService {
         let template = project_template::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("project template {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("project template {id} not found")))?;
 
         let now = chrono::Utc::now().fixed_offset();
         let project_id = Uuid::now_v7();

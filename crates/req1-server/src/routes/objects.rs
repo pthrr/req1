@@ -7,6 +7,8 @@ use req1_core::auth::AuthUser;
 use sea_orm::{
     ColumnTrait, EntityTrait, Order, PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait,
 };
+use serde::Deserialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
@@ -18,7 +20,6 @@ use req1_core::{
         UpdateObjectInput,
     },
 };
-use serde::Deserialize;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -31,10 +32,7 @@ pub fn routes() -> Router<AppState> {
             "/modules/{module_id}/objects/{id}",
             get(get_object).patch(update_object).delete(delete_object),
         )
-        .route(
-            "/modules/{module_id}/objects/{id}/move",
-            post(move_object),
-        )
+        .route("/modules/{module_id}/objects/{id}/move", post(move_object))
         .route(
             "/modules/{module_id}/objects/{id}/history",
             get(list_object_history),
@@ -53,7 +51,15 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-async fn list_objects(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/objects", tag = "Objects",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ListObjectsFilter,
+    ),
+    responses((status = 200, body = PaginatedResponse<entity::object::Model>))
+)]
+pub(crate) async fn list_objects(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Query(filter): Query<ListObjectsFilter>,
@@ -62,7 +68,13 @@ async fn list_objects(
     Ok(Json(result))
 }
 
-async fn create_object(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/objects", tag = "Objects",
+    security(("bearer_auth" = [])),
+    params(("module_id" = Uuid, Path, description = "Module ID")),
+    request_body = CreateObjectInput,
+    responses((status = 201, body = entity::object::Model))
+)]
+pub(crate) async fn create_object(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Extension(_auth_user): Extension<AuthUser>,
@@ -76,7 +88,15 @@ async fn create_object(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_object(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/objects/{id}", tag = "Objects",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Object ID"),
+    ),
+    responses((status = 200, body = entity::object::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_object(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<entity::object::Model>, AppError> {
@@ -84,7 +104,16 @@ async fn get_object(
     Ok(Json(result))
 }
 
-async fn update_object(
+#[utoipa::path(patch, path = "/api/v1/modules/{module_id}/objects/{id}", tag = "Objects",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Object ID"),
+    ),
+    request_body = UpdateObjectInput,
+    responses((status = 200, body = entity::object::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn update_object(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateObjectInput>,
@@ -97,7 +126,15 @@ async fn update_object(
     Ok(Json(result))
 }
 
-async fn delete_object(
+#[utoipa::path(delete, path = "/api/v1/modules/{module_id}/objects/{id}", tag = "Objects",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Object ID"),
+    ),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_object(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<axum::http::StatusCode, AppError> {
@@ -107,7 +144,16 @@ async fn delete_object(
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
-async fn move_object(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/objects/{id}/move", tag = "Objects",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Object ID"),
+    ),
+    request_body = MoveObjectInput,
+    responses((status = 200, body = entity::object::Model))
+)]
+pub(crate) async fn move_object(
     State(state): State<AppState>,
     Path((module_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<MoveObjectInput>,
@@ -118,7 +164,16 @@ async fn move_object(
     Ok(Json(result))
 }
 
-async fn list_object_history(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/objects/{id}/history", tag = "Objects",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Object ID"),
+        Pagination,
+    ),
+    responses((status = 200, body = PaginatedResponse<object_history::Model>))
+)]
+pub(crate) async fn list_object_history(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
     Query(pagination): Query<Pagination>,
@@ -143,19 +198,27 @@ const fn default_search_limit() -> u64 {
     50
 }
 
-#[derive(Debug, Deserialize)]
-struct SearchQuery {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct SearchQuery {
     q: String,
     #[serde(default = "default_search_limit")]
     limit: u64,
 }
 
-#[derive(serde::Serialize)]
-struct SearchResponse {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct SearchResponse {
     items: Vec<GlobalSearchResult>,
 }
 
-async fn search_global(
+#[utoipa::path(get, path = "/api/v1/search", tag = "Objects",
+    security(("bearer_auth" = [])),
+    params(
+        ("q" = String, Query, description = "Search query"),
+        ("limit" = Option<u64>, Query, description = "Result limit"),
+    ),
+    responses((status = 200, body = SearchResponse))
+)]
+pub(crate) async fn search_global(
     State(state): State<AppState>,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<SearchResponse>, AppError> {
@@ -163,7 +226,15 @@ async fn search_global(
     Ok(Json(SearchResponse { items: results }))
 }
 
-async fn sync_placeholder(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/objects/{id}/sync", tag = "Objects",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Object ID"),
+    ),
+    responses((status = 200, body = entity::object::Model))
+)]
+pub(crate) async fn sync_placeholder(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<entity::object::Model>, AppError> {
@@ -173,7 +244,15 @@ async fn sync_placeholder(
     Ok(Json(result))
 }
 
-async fn break_placeholder_link(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/objects/{id}/break-link", tag = "Objects",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Object ID"),
+    ),
+    responses((status = 200, body = entity::object::Model))
+)]
+pub(crate) async fn break_placeholder_link(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<entity::object::Model>, AppError> {
@@ -181,12 +260,17 @@ async fn break_placeholder_link(
     Ok(Json(result))
 }
 
-#[derive(serde::Serialize)]
-struct SyncAllResponse {
+#[derive(serde::Serialize, ToSchema)]
+pub(crate) struct SyncAllResponse {
     synced: u64,
 }
 
-async fn sync_all_placeholders(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/sync-placeholders", tag = "Objects",
+    security(("bearer_auth" = [])),
+    params(("module_id" = Uuid, Path, description = "Module ID")),
+    responses((status = 200, body = SyncAllResponse))
+)]
+pub(crate) async fn sync_all_placeholders(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
 ) -> Result<Json<SyncAllResponse>, AppError> {

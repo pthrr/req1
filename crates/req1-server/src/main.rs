@@ -11,8 +11,12 @@ use tower_http::{
 };
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
+
 use req1_server::config::Config;
 use req1_server::middleware;
+use req1_server::openapi::ApiDoc;
 use req1_server::routes;
 use req1_server::scheduler;
 use req1_server::state::AppState;
@@ -43,6 +47,7 @@ async fn main() -> anyhow::Result<()> {
     let cors = build_cors_layer(&config);
 
     let mut app = routes::router(state)
+        .merge(SwaggerUi::new("/swagger-ui").url("/api/docs/openapi.json", ApiDoc::openapi()))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn(middleware::cache_control));

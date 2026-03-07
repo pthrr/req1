@@ -33,9 +33,7 @@ impl MigrationTrait for Migration {
 
         let _ = manager
             .get_connection()
-            .execute_unprepared(
-                "ALTER TABLE attribute_definition DROP COLUMN IF EXISTS depends_on",
-            )
+            .execute_unprepared("ALTER TABLE attribute_definition DROP COLUMN IF EXISTS depends_on")
             .await?;
 
         Ok(())

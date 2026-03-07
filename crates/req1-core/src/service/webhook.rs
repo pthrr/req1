@@ -1,12 +1,13 @@
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::webhook;
 
 use crate::error::CoreError;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateWebhookInput {
     pub module_id: Uuid,
     pub name: String,
@@ -16,7 +17,7 @@ pub struct CreateWebhookInput {
     pub active: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateWebhookInput {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -73,14 +74,11 @@ impl WebhookService {
         Ok(items)
     }
 
-    pub async fn get(
-        db: &impl ConnectionTrait,
-        id: Uuid,
-    ) -> Result<webhook::Model, CoreError> {
+    pub async fn get(db: &impl ConnectionTrait, id: Uuid) -> Result<webhook::Model, CoreError> {
         webhook::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("webhook {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("webhook {id} not found")))
     }
 
     pub async fn update(
@@ -115,7 +113,7 @@ impl WebhookService {
     pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
         let result = webhook::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("webhook {id} not found")));
+            return Err(CoreError::not_found(format!("webhook {id} not found")));
         }
         Ok(())
     }
@@ -137,10 +135,7 @@ impl WebhookService {
         let event_owned = event.to_owned();
         for hook in hooks {
             // Check if the webhook is subscribed to this event
-            let subscribed = hook
-                .events
-                .split(',')
-                .any(|e| e.trim() == event_owned);
+            let subscribed = hook.events.split(',').any(|e| e.trim() == event_owned);
             if !subscribed {
                 continue;
             }

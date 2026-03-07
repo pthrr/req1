@@ -1,7 +1,10 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize, utoipa::ToSchema,
+)]
+#[schema(as = DashboardWidget)]
 #[sea_orm(table_name = "dashboard_widget")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
@@ -10,12 +13,15 @@ pub struct Model {
     pub widget_type: String,
     pub title: String,
     #[sea_orm(column_type = "JsonBinary")]
+    #[schema(value_type = Object)]
     pub config: serde_json::Value,
     pub position_x: i32,
     pub position_y: i32,
     pub width: i32,
     pub height: i32,
+    #[schema(value_type = String)]
     pub created_at: DateTimeWithTimeZone,
+    #[schema(value_type = String)]
     pub updated_at: DateTimeWithTimeZone,
 }
 

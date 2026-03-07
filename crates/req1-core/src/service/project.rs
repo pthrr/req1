@@ -1,15 +1,14 @@
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 use serde::Deserialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::project;
 
-use crate::PaginatedResponse;
+use crate::crud_service;
 use crate::error::CoreError;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateProjectInput {
     #[serde(default)]
     pub workspace_id: Uuid,
@@ -17,7 +16,7 @@ pub struct CreateProjectInput {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateProjectInput {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -54,7 +53,7 @@ impl ProjectService {
         let existing = project::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("project {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("project {id} not found")))?;
 
         let mut active: project::ActiveModel = existing.into();
         if let Some(name) = input.name {
@@ -68,40 +67,6 @@ impl ProjectService {
         let result = active.update(db).await?;
         Ok(result)
     }
-
-    pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
-        let result = project::Entity::delete_by_id(id).exec(db).await?;
-        if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("project {id} not found")));
-        }
-        Ok(())
-    }
-
-    pub async fn get(db: &impl ConnectionTrait, id: Uuid) -> Result<project::Model, CoreError> {
-        project::Entity::find_by_id(id)
-            .one(db)
-            .await?
-            .ok_or_else(|| CoreError::NotFound(format!("project {id} not found")))
-    }
-
-    pub async fn list(
-        db: &impl ConnectionTrait,
-        workspace_id: Uuid,
-        offset: u64,
-        limit: u64,
-    ) -> Result<PaginatedResponse<project::Model>, CoreError> {
-        let paginator = project::Entity::find()
-            .filter(project::Column::WorkspaceId.eq(workspace_id))
-            .paginate(db, limit);
-        let total = paginator.num_items().await?;
-        let page = offset / limit;
-        let items = paginator.fetch_page(page).await?;
-
-        Ok(PaginatedResponse {
-            items,
-            total,
-            offset,
-            limit,
-        })
-    }
 }
+
+crud_service!(ProjectService, project::Entity, "project", parent: project::Column::WorkspaceId);

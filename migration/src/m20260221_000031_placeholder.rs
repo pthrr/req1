@@ -47,9 +47,7 @@ impl MigrationTrait for Migration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let _ = manager
             .get_connection()
-            .execute_unprepared(
-                "ALTER TABLE object DROP CONSTRAINT IF EXISTS chk_placeholder",
-            )
+            .execute_unprepared("ALTER TABLE object DROP CONSTRAINT IF EXISTS chk_placeholder")
             .await?;
 
         let _ = manager
@@ -59,23 +57,17 @@ impl MigrationTrait for Migration {
 
         let _ = manager
             .get_connection()
-            .execute_unprepared(
-                "ALTER TABLE object DROP COLUMN IF EXISTS is_placeholder",
-            )
+            .execute_unprepared("ALTER TABLE object DROP COLUMN IF EXISTS is_placeholder")
             .await?;
 
         let _ = manager
             .get_connection()
-            .execute_unprepared(
-                "ALTER TABLE object DROP COLUMN IF EXISTS source_module_id",
-            )
+            .execute_unprepared("ALTER TABLE object DROP COLUMN IF EXISTS source_module_id")
             .await?;
 
         let _ = manager
             .get_connection()
-            .execute_unprepared(
-                "ALTER TABLE object DROP COLUMN IF EXISTS source_object_id",
-            )
+            .execute_unprepared("ALTER TABLE object DROP COLUMN IF EXISTS source_object_id")
             .await?;
 
         Ok(())

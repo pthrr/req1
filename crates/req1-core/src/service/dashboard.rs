@@ -3,6 +3,7 @@ use sea_orm::{
     Set,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::{dashboard, dashboard_widget};
@@ -16,7 +17,7 @@ const VALID_WIDGET_TYPES: &[&str] = &[
     "test_status",
 ];
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateDashboardInput {
     #[serde(default)]
     pub workspace_id: Uuid,
@@ -25,18 +26,19 @@ pub struct CreateDashboardInput {
     pub created_by: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateDashboardInput {
     pub name: Option<String>,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateWidgetInput {
     #[serde(default)]
     pub dashboard_id: Uuid,
     pub widget_type: String,
     pub title: String,
+    #[schema(value_type = Option<Object>)]
     pub config: Option<serde_json::Value>,
     pub position_x: Option<i32>,
     pub position_y: Option<i32>,
@@ -44,10 +46,11 @@ pub struct CreateWidgetInput {
     pub height: Option<i32>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateWidgetInput {
     pub widget_type: Option<String>,
     pub title: Option<String>,
+    #[schema(value_type = Option<Object>)]
     pub config: Option<serde_json::Value>,
     pub position_x: Option<i32>,
     pub position_y: Option<i32>,
@@ -55,10 +58,11 @@ pub struct UpdateWidgetInput {
     pub height: Option<i32>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WidgetDataEntry {
     pub label: String,
     pub value: i64,
+    #[schema(value_type = Option<Object>)]
     pub extra: Option<serde_json::Value>,
 }
 
@@ -108,7 +112,7 @@ impl DashboardService {
         dashboard::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("dashboard {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("dashboard {id} not found")))
     }
 
     pub async fn update_dashboard(
@@ -131,13 +135,10 @@ impl DashboardService {
         Ok(result)
     }
 
-    pub async fn delete_dashboard(
-        db: &impl ConnectionTrait,
-        id: Uuid,
-    ) -> Result<(), CoreError> {
+    pub async fn delete_dashboard(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
         let result = dashboard::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("dashboard {id} not found")));
+            return Err(CoreError::not_found(format!("dashboard {id} not found")));
         }
         Ok(())
     }
@@ -162,7 +163,7 @@ impl DashboardService {
         input: CreateWidgetInput,
     ) -> Result<dashboard_widget::Model, CoreError> {
         if !VALID_WIDGET_TYPES.contains(&input.widget_type.as_str()) {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "invalid widget_type '{}', must be one of: {VALID_WIDGET_TYPES:?}",
                 input.widget_type
             )));
@@ -196,7 +197,7 @@ impl DashboardService {
         dashboard_widget::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("widget {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("widget {id} not found")))
     }
 
     pub async fn update_widget(
@@ -209,7 +210,7 @@ impl DashboardService {
         if let Some(ref wt) = input.widget_type
             && !VALID_WIDGET_TYPES.contains(&wt.as_str())
         {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "invalid widget_type '{wt}', must be one of: {VALID_WIDGET_TYPES:?}"
             )));
         }
@@ -242,13 +243,10 @@ impl DashboardService {
         Ok(result)
     }
 
-    pub async fn delete_widget(
-        db: &impl ConnectionTrait,
-        id: Uuid,
-    ) -> Result<(), CoreError> {
+    pub async fn delete_widget(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
         let result = dashboard_widget::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("widget {id} not found")));
+            return Err(CoreError::not_found(format!("widget {id} not found")));
         }
         Ok(())
     }
@@ -268,7 +266,7 @@ impl DashboardService {
             "suspect_link_count" => suspect_link_data(db, &module_ids).await,
             "lifecycle_distribution" => lifecycle_data(db, &module_ids).await,
             "test_status" => test_status_data(db, &module_ids).await,
-            other => Err(CoreError::BadRequest(format!(
+            other => Err(CoreError::bad_request(format!(
                 "unknown widget_type: {other}"
             ))),
         }
@@ -421,8 +419,7 @@ async fn lifecycle_data(
         .all(db)
         .await?;
 
-    let mut state_counts: std::collections::HashMap<String, i64> =
-        std::collections::HashMap::new();
+    let mut state_counts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
     for obj in &objects {
         let state = obj
             .lifecycle_state

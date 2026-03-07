@@ -22,5 +22,8 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Generated
+openapi.json
+
 # Docker volumes
 pgdata/

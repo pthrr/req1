@@ -7,6 +7,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
@@ -52,8 +53,8 @@ fn default_script_type() -> String {
     "trigger".to_owned()
 }
 
-#[derive(Debug, Deserialize)]
-struct CreateScriptRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct CreateScriptRequest {
     name: String,
     #[serde(default = "default_script_type")]
     script_type: String,
@@ -64,8 +65,8 @@ struct CreateScriptRequest {
     cron_expression: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct UpdateScriptRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct UpdateScriptRequest {
     name: Option<String>,
     script_type: Option<String>,
     hook_point: Option<String>,
@@ -75,21 +76,26 @@ struct UpdateScriptRequest {
     cron_expression: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct TestScriptRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct TestScriptRequest {
     /// For trigger/layout scripts: the object to run against.
     object: Option<ScriptObject>,
     /// For trigger scripts: override the `hook_point`.
     hook_point: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct ExecuteResult {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct ExecuteResult {
     output: Vec<String>,
     mutations_applied: usize,
 }
 
-async fn list_scripts(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/scripts", tag = "Scripts",
+    security(("bearer_auth" = [])),
+    params(("module_id" = Uuid, Path, description = "Module ID")),
+    responses((status = 200, body = Vec<script::Model>))
+)]
+pub(crate) async fn list_scripts(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
 ) -> Result<Json<Vec<script::Model>>, AppError> {
@@ -100,13 +106,19 @@ async fn list_scripts(
     Ok(Json(items))
 }
 
-async fn create_script(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/scripts", tag = "Scripts",
+    security(("bearer_auth" = [])),
+    params(("module_id" = Uuid, Path, description = "Module ID")),
+    request_body = CreateScriptRequest,
+    responses((status = 201, body = script::Model))
+)]
+pub(crate) async fn create_script(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Json(body): Json<CreateScriptRequest>,
 ) -> Result<(axum::http::StatusCode, Json<script::Model>), AppError> {
     if !VALID_SCRIPT_TYPES.contains(&body.script_type.as_str()) {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::bad_request(format!(
             "invalid script_type '{}', must be one of: {VALID_SCRIPT_TYPES:?}",
             body.script_type
         )));
@@ -115,12 +127,12 @@ async fn create_script(
     if body.script_type == "trigger" {
         match &body.hook_point {
             None => {
-                return Err(AppError::BadRequest(
+                return Err(AppError::bad_request(
                     "hook_point is required for trigger scripts".to_owned(),
                 ));
             }
             Some(hp) if !VALID_HOOK_POINTS.contains(&hp.as_str()) => {
-                return Err(AppError::BadRequest(format!(
+                return Err(AppError::bad_request(format!(
                     "invalid hook_point '{hp}', must be one of: {VALID_HOOK_POINTS:?}"
                 )));
             }
@@ -158,18 +170,35 @@ async fn create_script(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_script(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/scripts/{id}", tag = "Scripts",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Script ID"),
+    ),
+    responses((status = 200, body = script::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_script(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<script::Model>, AppError> {
     let s = script::Entity::find_by_id(id)
         .one(&state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("script {id} not found")))?;
+        .ok_or_else(|| AppError::not_found(format!("script {id} not found")))?;
     Ok(Json(s))
 }
 
-async fn update_script(
+#[utoipa::path(patch, path = "/api/v1/modules/{module_id}/scripts/{id}", tag = "Scripts",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Script ID"),
+    ),
+    request_body = UpdateScriptRequest,
+    responses((status = 200, body = script::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn update_script(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateScriptRequest>,
@@ -177,7 +206,7 @@ async fn update_script(
     let existing = script::Entity::find_by_id(id)
         .one(&state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("script {id} not found")))?;
+        .ok_or_else(|| AppError::not_found(format!("script {id} not found")))?;
 
     let final_type = body.script_type.as_deref().unwrap_or(&existing.script_type);
     let final_hook = body
@@ -190,7 +219,7 @@ async fn update_script(
         .as_deref()
         .filter(|st| !VALID_SCRIPT_TYPES.contains(st))
     {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::bad_request(format!(
             "invalid script_type '{st}', must be one of: {VALID_SCRIPT_TYPES:?}"
         )));
     }
@@ -198,12 +227,12 @@ async fn update_script(
     if final_type == "trigger" {
         match final_hook {
             None => {
-                return Err(AppError::BadRequest(
+                return Err(AppError::bad_request(
                     "hook_point is required for trigger scripts".to_owned(),
                 ));
             }
             Some(hp) if !VALID_HOOK_POINTS.contains(&hp) => {
-                return Err(AppError::BadRequest(format!(
+                return Err(AppError::bad_request(format!(
                     "invalid hook_point '{hp}', must be one of: {VALID_HOOK_POINTS:?}"
                 )));
             }
@@ -242,18 +271,35 @@ async fn update_script(
     Ok(Json(result))
 }
 
-async fn delete_script(
+#[utoipa::path(delete, path = "/api/v1/modules/{module_id}/scripts/{id}", tag = "Scripts",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Script ID"),
+    ),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_script(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<axum::http::StatusCode, AppError> {
     let result = script::Entity::delete_by_id(id).exec(&state.db).await?;
     if result.rows_affected == 0 {
-        return Err(AppError::NotFound(format!("script {id} not found")));
+        return Err(AppError::not_found(format!("script {id} not found")));
     }
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
-async fn test_script(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/scripts/{id}/test", tag = "Scripts",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Script ID"),
+    ),
+    request_body = TestScriptRequest,
+    responses((status = 200, body = Object))
+)]
+pub(crate) async fn test_script(
     State(state): State<AppState>,
     Path((module_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<TestScriptRequest>,
@@ -261,17 +307,17 @@ async fn test_script(
     let s = script::Entity::find_by_id(id)
         .one(&state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("script {id} not found")))?;
+        .ok_or_else(|| AppError::not_found(format!("script {id} not found")))?;
 
     let world = load_world(&state.db, module_id).await?;
 
     let result = match s.script_type.as_str() {
         "trigger" => {
             let obj = body.object.ok_or_else(|| {
-                AppError::BadRequest("object is required for trigger test".to_owned())
+                AppError::bad_request("object is required for trigger test".to_owned())
             })?;
             let hook = body.hook_point.or(s.hook_point.clone()).ok_or_else(|| {
-                AppError::BadRequest("hook_point is required for trigger test".to_owned())
+                AppError::bad_request("hook_point is required for trigger test".to_owned())
             })?;
             let ctx = TriggerContext {
                 hook_point: hook,
@@ -287,7 +333,7 @@ async fn test_script(
         }
         "layout" => {
             let obj = body.object.ok_or_else(|| {
-                AppError::BadRequest("object is required for layout test".to_owned())
+                AppError::bad_request("object is required for layout test".to_owned())
             })?;
             let r = ScriptEngine::run_layout(&s.source_code, &world, &obj)?;
             serde_json::json!({
@@ -304,7 +350,7 @@ async fn test_script(
             })
         }
         other => {
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::bad_request(format!(
                 "unknown script_type '{other}'"
             )));
         }
@@ -313,17 +359,25 @@ async fn test_script(
     Ok(Json(result))
 }
 
-async fn execute_script(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/scripts/{id}/execute", tag = "Scripts",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Script ID"),
+    ),
+    responses((status = 200, body = ExecuteResult))
+)]
+pub(crate) async fn execute_script(
     State(state): State<AppState>,
     Path((module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<ExecuteResult>, AppError> {
     let s = script::Entity::find_by_id(id)
         .one(&state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("script {id} not found")))?;
+        .ok_or_else(|| AppError::not_found(format!("script {id} not found")))?;
 
     if s.script_type != "action" {
-        return Err(AppError::BadRequest(
+        return Err(AppError::bad_request(
             "only action scripts can be executed".to_owned(),
         ));
     }
@@ -345,28 +399,36 @@ async fn execute_script(
     }))
 }
 
-#[derive(Debug, Serialize)]
-struct LayoutEntry {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct LayoutEntry {
     object_id: Uuid,
     value: String,
 }
 
-#[derive(Debug, Serialize)]
-struct BatchLayoutResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct BatchLayoutResponse {
     results: Vec<LayoutEntry>,
 }
 
-async fn batch_layout(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/scripts/{id}/layout", tag = "Scripts",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Script ID"),
+    ),
+    responses((status = 200, body = BatchLayoutResponse))
+)]
+pub(crate) async fn batch_layout(
     State(state): State<AppState>,
     Path((module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<BatchLayoutResponse>, AppError> {
     let s = script::Entity::find_by_id(id)
         .one(&state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("script {id} not found")))?;
+        .ok_or_else(|| AppError::not_found(format!("script {id} not found")))?;
 
     if s.script_type != "layout" {
-        return Err(AppError::BadRequest(
+        return Err(AppError::bad_request(
             "only layout scripts can be used with this endpoint".to_owned(),
         ));
     }
@@ -379,7 +441,7 @@ async fn batch_layout(
         let oid = obj
             .id
             .parse::<Uuid>()
-            .map_err(|e| AppError::Internal(format!("invalid object UUID: {e}")))?;
+            .map_err(|e| AppError::internal(format!("invalid object UUID: {e}")))?;
         results.push(LayoutEntry {
             object_id: oid,
             value: layout_result.value,
@@ -389,7 +451,16 @@ async fn batch_layout(
     Ok(Json(BatchLayoutResponse { results }))
 }
 
-async fn list_executions(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/scripts/{id}/executions", tag = "Scripts",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Script ID"),
+        Pagination,
+    ),
+    responses((status = 200, body = PaginatedResponse<entity::script_execution::Model>))
+)]
+pub(crate) async fn list_executions(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
     Query(pagination): Query<Pagination>,
@@ -423,7 +494,7 @@ async fn apply_action_mutations(
         let obj = object::Entity::find_by_id(*oid)
             .one(db)
             .await?
-            .ok_or_else(|| AppError::NotFound(format!("object {oid} not found")))?;
+            .ok_or_else(|| AppError::not_found(format!("object {oid} not found")))?;
 
         let mut attrs = obj
             .attributes

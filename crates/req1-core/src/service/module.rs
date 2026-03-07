@@ -1,8 +1,9 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Order, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use entity::{attribute_definition, link, module, object, object_type, script};
@@ -12,7 +13,7 @@ use crate::error::CoreError;
 
 const VALID_CLASSIFICATIONS: &[&str] = &["normative", "informative", "heading"];
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateModuleInput {
     pub name: String,
     #[serde(default)]
@@ -25,10 +26,11 @@ pub struct CreateModuleInput {
     pub default_classification: Option<String>,
     pub publish_template: Option<String>,
     pub default_lifecycle_model_id: Option<Uuid>,
+    #[schema(value_type = Option<Object>)]
     pub signature_config: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateModuleInput {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -39,6 +41,7 @@ pub struct UpdateModuleInput {
     pub default_classification: Option<String>,
     pub publish_template: Option<String>,
     pub default_lifecycle_model_id: Option<Uuid>,
+    #[schema(value_type = Option<Object>)]
     pub signature_config: Option<serde_json::Value>,
 }
 
@@ -46,7 +49,7 @@ const fn default_limit() -> u64 {
     50
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct ListModulesFilter {
     #[serde(default)]
     pub offset: u64,
@@ -55,7 +58,7 @@ pub struct ListModulesFilter {
     pub project_id: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateModuleFromTemplateInput {
     pub name: String,
     pub project_id: Uuid,
@@ -78,7 +81,7 @@ impl ModuleService {
             .default_classification
             .unwrap_or_else(|| "normative".to_owned());
         if !VALID_CLASSIFICATIONS.contains(&default_class.as_str()) {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "invalid default_classification '{default_class}', must be one of: {VALID_CLASSIFICATIONS:?}"
             )));
         }
@@ -115,7 +118,7 @@ impl ModuleService {
             .one(db)
             .await?
             .ok_or_else(|| {
-                CoreError::NotFound(format!(
+                CoreError::not_found(format!(
                     "template module {} not found",
                     input.template_module_id
                 ))
@@ -227,11 +230,13 @@ impl ModuleService {
 
             // Insert copied objects with remapped parent_id and object_type_id
             for obj in &objects {
-                let new_obj_id = *obj_id_map.get(&obj.id).ok_or_else(|| {
-                    CoreError::Internal("object id not in mapping".to_owned())
-                })?;
+                let new_obj_id = *obj_id_map
+                    .get(&obj.id)
+                    .ok_or_else(|| CoreError::internal("object id not in mapping".to_owned()))?;
                 let new_parent_id = obj.parent_id.and_then(|pid| obj_id_map.get(&pid).copied());
-                let new_type_id = obj.object_type_id.and_then(|tid| type_id_map.get(&tid).copied());
+                let new_type_id = obj
+                    .object_type_id
+                    .and_then(|tid| type_id_map.get(&tid).copied());
                 let copy = object::ActiveModel {
                     id: Set(new_obj_id),
                     module_id: Set(new_id),
@@ -300,7 +305,7 @@ impl ModuleService {
         module::Entity::find_by_id(new_id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::Internal("module not found after insert".to_owned()))
+            .ok_or_else(|| CoreError::internal("module not found after insert".to_owned()))
     }
 
     pub async fn update(
@@ -311,7 +316,7 @@ impl ModuleService {
         let existing = module::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("module {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("module {id} not found")))?;
 
         let mut active: module::ActiveModel = existing.into();
         if let Some(name) = input.name {
@@ -334,7 +339,7 @@ impl ModuleService {
         }
         if let Some(ref default_classification) = input.default_classification {
             if !VALID_CLASSIFICATIONS.contains(&default_classification.as_str()) {
-                return Err(CoreError::BadRequest(format!(
+                return Err(CoreError::bad_request(format!(
                     "invalid default_classification '{default_classification}', must be one of: {VALID_CLASSIFICATIONS:?}"
                 )));
             }
@@ -358,7 +363,7 @@ impl ModuleService {
     pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
         let result = module::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("module {id} not found")));
+            return Err(CoreError::not_found(format!("module {id} not found")));
         }
         Ok(())
     }
@@ -367,7 +372,7 @@ impl ModuleService {
         module::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("module {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("module {id} not found")))
     }
 
     pub async fn list(

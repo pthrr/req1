@@ -1,30 +1,35 @@
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 use serde::Deserialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::view;
 
-use crate::PaginatedResponse;
+use crate::crud_service;
 use crate::error::CoreError;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateViewInput {
     #[serde(default)]
     pub module_id: Uuid,
     pub name: String,
+    #[schema(value_type = Option<Object>)]
     pub column_config: Option<serde_json::Value>,
+    #[schema(value_type = Option<Object>)]
     pub filter_config: Option<serde_json::Value>,
+    #[schema(value_type = Option<Object>)]
     pub sort_config: Option<serde_json::Value>,
     pub is_default: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateViewInput {
     pub name: Option<String>,
+    #[schema(value_type = Option<Object>)]
     pub column_config: Option<serde_json::Value>,
+    #[schema(value_type = Option<Object>)]
     pub filter_config: Option<serde_json::Value>,
+    #[schema(value_type = Option<Object>)]
     pub sort_config: Option<serde_json::Value>,
     pub is_default: Option<bool>,
 }
@@ -63,7 +68,7 @@ impl ViewService {
         let existing = view::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("view {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("view {id} not found")))?;
 
         let mut active: view::ActiveModel = existing.into();
         if let Some(name) = input.name {
@@ -86,40 +91,6 @@ impl ViewService {
         let result = active.update(db).await?;
         Ok(result)
     }
-
-    pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
-        let result = view::Entity::delete_by_id(id).exec(db).await?;
-        if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("view {id} not found")));
-        }
-        Ok(())
-    }
-
-    pub async fn get(db: &impl ConnectionTrait, id: Uuid) -> Result<view::Model, CoreError> {
-        view::Entity::find_by_id(id)
-            .one(db)
-            .await?
-            .ok_or_else(|| CoreError::NotFound(format!("view {id} not found")))
-    }
-
-    pub async fn list(
-        db: &impl ConnectionTrait,
-        module_id: Uuid,
-        offset: u64,
-        limit: u64,
-    ) -> Result<PaginatedResponse<view::Model>, CoreError> {
-        let paginator = view::Entity::find()
-            .filter(view::Column::ModuleId.eq(module_id))
-            .paginate(db, limit);
-        let total = paginator.num_items().await?;
-        let page = offset / limit;
-        let items = paginator.fetch_page(page).await?;
-
-        Ok(PaginatedResponse {
-            items,
-            total,
-            offset,
-            limit,
-        })
-    }
 }
+
+crud_service!(ViewService, view::Entity, "view", parent: view::Column::ModuleId);

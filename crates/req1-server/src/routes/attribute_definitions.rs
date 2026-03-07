@@ -1,3 +1,5 @@
+#![allow(unused_qualifications)]
+
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
@@ -5,6 +7,7 @@ use axum::{
 };
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde::Deserialize;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
@@ -29,8 +32,8 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-#[derive(Debug, Deserialize)]
-struct CreateAttributeDefinitionRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct CreateAttributeDefinitionRequest {
     name: String,
     data_type: String,
     default_value: Option<String>,
@@ -40,8 +43,8 @@ struct CreateAttributeDefinitionRequest {
     dependency_mapping: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
-struct UpdateAttributeDefinitionRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct UpdateAttributeDefinitionRequest {
     name: Option<String>,
     data_type: Option<String>,
     default_value: Option<String>,
@@ -51,12 +54,21 @@ struct UpdateAttributeDefinitionRequest {
     dependency_mapping: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
-struct AllowedValuesQuery {
+#[derive(Debug, Deserialize, IntoParams)]
+pub(crate) struct AllowedValuesQuery {
     parent_value: String,
 }
 
-async fn list_attribute_definitions(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/attribute-definitions",
+    tag = "AttributeDefinitions",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        Pagination,
+    ),
+    responses((status = 200, body = PaginatedResponse<attribute_definition::Model>))
+)]
+pub(crate) async fn list_attribute_definitions(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Query(pagination): Query<Pagination>,
@@ -80,7 +92,14 @@ async fn list_attribute_definitions(
     }))
 }
 
-async fn create_attribute_definition(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/attribute-definitions",
+    tag = "AttributeDefinitions",
+    security(("bearer_auth" = [])),
+    params(("module_id" = Uuid, Path, description = "Module ID")),
+    request_body = CreateAttributeDefinitionRequest,
+    responses((status = 201, body = attribute_definition::Model))
+)]
+pub(crate) async fn create_attribute_definition(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Json(body): Json<CreateAttributeDefinitionRequest>,
@@ -99,7 +118,7 @@ async fn create_attribute_definition(
         "user_ref",
     ];
     if !valid_types.contains(&body.data_type.as_str()) {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::bad_request(format!(
             "invalid data_type '{}', must be one of: {}",
             body.data_type,
             valid_types.join(", ")
@@ -139,19 +158,44 @@ async fn create_attribute_definition(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_attribute_definition(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/attribute-definitions/{id}",
+    tag = "AttributeDefinitions",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Attribute definition ID"),
+    ),
+    responses(
+        (status = 200, body = attribute_definition::Model),
+        (status = 404, description = "Not found"),
+    )
+)]
+pub(crate) async fn get_attribute_definition(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<attribute_definition::Model>, AppError> {
     let def = attribute_definition::Entity::find_by_id(id)
         .one(&state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("attribute definition {id} not found")))?;
+        .ok_or_else(|| AppError::not_found(format!("attribute definition {id} not found")))?;
 
     Ok(Json(def))
 }
 
-async fn update_attribute_definition(
+#[utoipa::path(patch, path = "/api/v1/modules/{module_id}/attribute-definitions/{id}",
+    tag = "AttributeDefinitions",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Attribute definition ID"),
+    ),
+    request_body = UpdateAttributeDefinitionRequest,
+    responses(
+        (status = 200, body = attribute_definition::Model),
+        (status = 404, description = "Not found"),
+    )
+)]
+pub(crate) async fn update_attribute_definition(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateAttributeDefinitionRequest>,
@@ -159,7 +203,7 @@ async fn update_attribute_definition(
     let existing = attribute_definition::Entity::find_by_id(id)
         .one(&state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("attribute definition {id} not found")))?;
+        .ok_or_else(|| AppError::not_found(format!("attribute definition {id} not found")))?;
 
     let mut active: attribute_definition::ActiveModel = existing.into();
     if let Some(name) = body.name {
@@ -177,7 +221,7 @@ async fn update_attribute_definition(
             "user_ref",
         ];
         if !valid_types.contains(&data_type.as_str()) {
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::bad_request(format!(
                 "invalid data_type '{data_type}'"
             )));
         }
@@ -208,7 +252,19 @@ async fn update_attribute_definition(
     Ok(Json(result))
 }
 
-async fn delete_attribute_definition(
+#[utoipa::path(delete, path = "/api/v1/modules/{module_id}/attribute-definitions/{id}",
+    tag = "AttributeDefinitions",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Attribute definition ID"),
+    ),
+    responses(
+        (status = 204, description = "Deleted"),
+        (status = 404, description = "Not found"),
+    )
+)]
+pub(crate) async fn delete_attribute_definition(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<axum::http::StatusCode, AppError> {
@@ -216,14 +272,27 @@ async fn delete_attribute_definition(
         .exec(&state.db)
         .await?;
     if result.rows_affected == 0 {
-        return Err(AppError::NotFound(format!(
+        return Err(AppError::not_found(format!(
             "attribute definition {id} not found"
         )));
     }
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
-async fn get_allowed_values(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/attribute-definitions/{id}/allowed-values",
+    tag = "AttributeDefinitions",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Attribute definition ID"),
+        AllowedValuesQuery,
+    ),
+    responses(
+        (status = 200, body = Vec<String>),
+        (status = 404, description = "Not found"),
+    )
+)]
+pub(crate) async fn get_allowed_values(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
     Query(query): Query<AllowedValuesQuery>,
@@ -231,7 +300,7 @@ async fn get_allowed_values(
     let def = attribute_definition::Entity::find_by_id(id)
         .one(&state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("attribute definition {id} not found")))?;
+        .ok_or_else(|| AppError::not_found(format!("attribute definition {id} not found")))?;
 
     let Some(ref mapping) = def.dependency_mapping else {
         return Ok(Json(Vec::new()));

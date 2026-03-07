@@ -6,18 +6,17 @@ use uuid::Uuid;
 
 use entity::{attribute_definition, link, link_type, module, object, object_type};
 use req1_reqif::{
-    AttributeDefinition as ReqifAttrDef, DatatypeDefinition, ReqIf, SpecHierarchyChildren,
-    SpecType,
+    AttributeDefinition as ReqifAttrDef, DatatypeDefinition, ReqIf, SpecHierarchyChildren, SpecType,
 };
 
 use crate::error::CoreError;
 use crate::fingerprint::compute_content_fingerprint;
 
+use super::ImportResult;
 use super::type_map::{
     attr_value_def_ref, datatype_identifier, enum_values_to_json, extract_enum_values,
     reqif_attr_value_to_json, reqif_datatype_to_entity,
 };
-use super::ImportResult;
 
 /// Import a parsed `ReqIF` document into the database, creating entities for a given project.
 ///
@@ -41,7 +40,7 @@ pub async fn import_reqif(
                 Some(&s.specifications)
             }
         })
-        .ok_or_else(|| CoreError::BadRequest("ReqIF document has no specifications".to_owned()))?;
+        .ok_or_else(|| CoreError::bad_request("ReqIF document has no specifications".to_owned()))?;
 
     let txn = db.begin().await?;
 
@@ -240,8 +239,7 @@ pub async fn import_reqif(
             let heading = so.long_name.clone();
 
             // Build attributes JSON
-            let attributes =
-                build_attributes_json(so, &attr_def_info, &enum_values_by_id);
+            let attributes = build_attributes_json(so, &attr_def_info, &enum_values_by_id);
 
             // Resolve object type
             let ot_uuid = id_map.get(&so.type_ref.value).copied();
@@ -339,9 +337,7 @@ fn build_attributes_json(
     let mut attrs = serde_json::Map::new();
     for av in &values.values {
         let def_id = attr_value_def_ref(av);
-        let attr_name = attr_def_info
-            .get(def_id)
-            .map_or(def_id, |(name, _)| *name);
+        let attr_name = attr_def_info.get(def_id).map_or(def_id, |(name, _)| *name);
 
         let json_val = reqif_attr_value_to_json(av, enum_values_by_id);
         let _ = attrs.insert(attr_name.to_owned(), json_val);

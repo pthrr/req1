@@ -26,7 +26,15 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-async fn list_projects(
+#[utoipa::path(get, path = "/api/v1/workspaces/{workspace_id}/projects", tag = "Projects",
+    security(("bearer_auth" = [])),
+    params(
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+        Pagination,
+    ),
+    responses((status = 200, body = PaginatedResponse<project::Model>))
+)]
+pub(crate) async fn list_projects(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
     Query(pagination): Query<Pagination>,
@@ -36,7 +44,13 @@ async fn list_projects(
     Ok(Json(result))
 }
 
-async fn create_project(
+#[utoipa::path(post, path = "/api/v1/workspaces/{workspace_id}/projects", tag = "Projects",
+    security(("bearer_auth" = [])),
+    params(("workspace_id" = Uuid, Path, description = "Workspace ID")),
+    request_body = CreateProjectInput,
+    responses((status = 201, body = project::Model))
+)]
+pub(crate) async fn create_project(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
     Json(body): Json<CreateProjectInput>,
@@ -49,7 +63,15 @@ async fn create_project(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_project(
+#[utoipa::path(get, path = "/api/v1/workspaces/{workspace_id}/projects/{id}", tag = "Projects",
+    security(("bearer_auth" = [])),
+    params(
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+        ("id" = Uuid, Path, description = "Project ID"),
+    ),
+    responses((status = 200, body = project::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_project(
     State(state): State<AppState>,
     Path((_workspace_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<project::Model>, AppError> {
@@ -57,7 +79,16 @@ async fn get_project(
     Ok(Json(result))
 }
 
-async fn update_project(
+#[utoipa::path(patch, path = "/api/v1/workspaces/{workspace_id}/projects/{id}", tag = "Projects",
+    security(("bearer_auth" = [])),
+    params(
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+        ("id" = Uuid, Path, description = "Project ID"),
+    ),
+    request_body = UpdateProjectInput,
+    responses((status = 200, body = project::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn update_project(
     State(state): State<AppState>,
     Path((_workspace_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateProjectInput>,
@@ -66,7 +97,15 @@ async fn update_project(
     Ok(Json(result))
 }
 
-async fn delete_project(
+#[utoipa::path(delete, path = "/api/v1/workspaces/{workspace_id}/projects/{id}", tag = "Projects",
+    security(("bearer_auth" = [])),
+    params(
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+        ("id" = Uuid, Path, description = "Project ID"),
+    ),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_project(
     State(state): State<AppState>,
     Path((_workspace_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<axum::http::StatusCode, AppError> {

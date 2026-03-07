@@ -12,13 +12,14 @@ use crate::error::CoreError;
 // ---------------------------------------------------------------------------
 
 /// A lightweight object representation exposed to scripts.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ScriptObject {
     pub id: String,
     pub heading: Option<String>,
     pub body: Option<String>,
     pub level: Option<String>,
     pub classification: Option<String>,
+    #[schema(value_type = Option<Object>)]
     pub attributes: Option<serde_json::Value>,
     pub version: i32,
 }
@@ -181,10 +182,7 @@ fn op_get_object(state: &mut OpState, #[string] id: String) -> Option<ScriptObje
 
 #[op2]
 #[serde]
-fn op_links(
-    state: &mut OpState,
-    #[string] object_id: Option<String>,
-) -> Vec<ScriptLink> {
+fn op_links(state: &mut OpState, #[string] object_id: Option<String>) -> Vec<ScriptLink> {
     let ss = state.borrow::<ScriptState>();
     match object_id {
         Some(oid) => ss
@@ -205,8 +203,8 @@ fn op_set(
     #[string] key: String,
     #[serde] value: serde_json::Value,
 ) -> Result<(), OpError> {
-    let oid = Uuid::parse_str(&object_id)
-        .map_err(|e| OpError::Generic(format!("invalid UUID: {e}")))?;
+    let oid =
+        Uuid::parse_str(&object_id).map_err(|e| OpError::Generic(format!("invalid UUID: {e}")))?;
     state
         .borrow_mut::<ScriptState>()
         .mutations
@@ -279,7 +277,7 @@ fn create_runtime(script_state: ScriptState) -> Result<JsRuntime, CoreError> {
     // Run bootstrap to set up globals
     let _ = runtime
         .execute_script("<bootstrap>", BOOTSTRAP_JS.to_owned())
-        .map_err(|e| CoreError::Internal(format!("bootstrap error: {e}")))?;
+        .map_err(|e| CoreError::internal(format!("bootstrap error: {e}")))?;
 
     Ok(runtime)
 }
@@ -318,7 +316,7 @@ impl ScriptEngine {
 
         let _ = runtime
             .execute_script("<trigger>", source.to_owned())
-            .map_err(|e| CoreError::BadRequest(format!("script error: {e}")))?;
+            .map_err(|e| CoreError::bad_request(format!("script error: {e}")))?;
 
         let rc = runtime.op_state();
         let borrowed = rc.borrow();
@@ -360,7 +358,7 @@ impl ScriptEngine {
 
         let result = runtime
             .execute_script("<layout>", wrapped)
-            .map_err(|e| CoreError::BadRequest(format!("layout script error: {e}")))?;
+            .map_err(|e| CoreError::bad_request(format!("layout script error: {e}")))?;
 
         // Extract the return value from V8
         let value = {
@@ -392,7 +390,7 @@ impl ScriptEngine {
 
         let _ = runtime
             .execute_script("<action>", source.to_owned())
-            .map_err(|e| CoreError::BadRequest(format!("action script error: {e}")))?;
+            .map_err(|e| CoreError::bad_request(format!("action script error: {e}")))?;
 
         let rc = runtime.op_state();
         let borrowed = rc.borrow();

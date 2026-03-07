@@ -12,14 +12,14 @@ use req1_reqif::{
     EnumValueProperties, ReqIfBuilder, SpecAttributes, SpecHierarchy, SpecHierarchyChildren,
     SpecHierarchyObjectRef, SpecObjectType, SpecObjectTypeRef, SpecObjects, SpecRelation,
     SpecRelationEndpoint, SpecRelationType, SpecRelationTypeRef, SpecRelations, SpecType,
-    SpecTypes, Specification, SpecificationTypeRef, Specifications, SpecificationType,
+    SpecTypes, Specification, SpecificationType, SpecificationTypeRef, Specifications,
     SpecifiedValues,
 };
 
 use crate::error::CoreError;
 
-use super::type_map::{entity_datatype_to_reqif, json_to_reqif_attr_value};
 use super::ExportResult;
+use super::type_map::{entity_datatype_to_reqif, json_to_reqif_attr_value};
 
 /// Export a module and its contents to a `ReqIF` document.
 #[allow(clippy::too_many_lines)]
@@ -30,7 +30,7 @@ pub async fn export_reqif(
     let module_entity = module::Entity::find_by_id(module_id)
         .one(db)
         .await?
-        .ok_or_else(|| CoreError::NotFound(format!("module {module_id}")))?;
+        .ok_or_else(|| CoreError::not_found(format!("module {module_id}")))?;
 
     let objects: Vec<object::Model> = object::Entity::find()
         .filter(object::Column::ModuleId.eq(module_id))
@@ -129,8 +129,10 @@ pub async fn export_reqif(
     let objects_exported = reqif_objects.len();
     let links_exported = reqif_relations.len();
 
-    let mut builder =
-        ReqIfBuilder::new(format!("req1-export-{module_id}"), module_entity.name.clone());
+    let mut builder = ReqIfBuilder::new(
+        format!("req1-export-{module_id}"),
+        module_entity.name.clone(),
+    );
 
     if !reqif_datatypes.is_empty() {
         builder = builder.datatypes(Datatypes {
@@ -225,10 +227,7 @@ fn build_spec_types(
 
         for ad in attr_defs {
             let ad_reqif_id = format!("req1-{}", ad.id);
-            let dt_ref_id = datatype_map
-                .get(&ad.data_type)
-                .cloned()
-                .unwrap_or_default();
+            let dt_ref_id = datatype_map.get(&ad.data_type).cloned().unwrap_or_default();
 
             spec_attrs.push(build_reqif_attr_def(
                 &ad.name,
@@ -294,12 +293,10 @@ fn build_spec_objects(
 
         let type_ref_id = obj.object_type_id.map_or_else(
             || {
-                obj_types
-                    .first()
-                    .map_or_else(
-                        || format!("req1-default-type-{module_id}"),
-                        |ot| format!("req1-{}", ot.id),
-                    )
+                obj_types.first().map_or_else(
+                    || format!("req1-default-type-{module_id}"),
+                    |ot| format!("req1-{}", ot.id),
+                )
             },
             |ot_id| format!("req1-{ot_id}"),
         );
@@ -317,9 +314,7 @@ fn build_spec_objects(
             long_name: obj.heading.clone(),
             last_change: None,
             desc: None,
-            type_ref: SpecObjectTypeRef {
-                value: type_ref_id,
-            },
+            type_ref: SpecObjectTypeRef { value: type_ref_id },
             values: attr_values,
         });
     }
@@ -548,7 +543,10 @@ fn build_enum_name_to_id_map(
             && let Some(sv) = &e.specified_values
         {
             for ev in &sv.values {
-                let name = ev.long_name.clone().unwrap_or_else(|| ev.identifier.clone());
+                let name = ev
+                    .long_name
+                    .clone()
+                    .unwrap_or_else(|| ev.identifier.clone());
                 let _ = map.insert(name, ev.identifier.clone());
             }
         }

@@ -4,6 +4,7 @@ use axum::{
     routing::{get, post},
 };
 use serde::Deserialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
@@ -20,15 +21,20 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-#[derive(Debug, Deserialize)]
-struct CreateSignatureRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct CreateSignatureRequest {
     entity_type: String,
     entity_id: Uuid,
     password: String,
     meaning: String,
 }
 
-async fn create_signature(
+#[utoipa::path(post, path = "/api/v1/e-signatures", tag = "ESignatures",
+    security(("bearer_auth" = [])),
+    request_body = CreateSignatureRequest,
+    responses((status = 201, body = e_signature::Model))
+)]
+pub(crate) async fn create_signature(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
     Json(body): Json<CreateSignatureRequest>,
@@ -38,13 +44,27 @@ async fn create_signature(
         meaning: body.meaning,
         ip_address: None,
     };
-    let result =
-        ESignatureService::sign(&state.db, auth_user.id, &body.entity_type, body.entity_id, input)
-            .await?;
+    let result = ESignatureService::sign(
+        &state.db,
+        auth_user.id,
+        &body.entity_type,
+        body.entity_id,
+        input,
+    )
+    .await?;
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn list_signatures(
+#[utoipa::path(get, path = "/api/v1/e-signatures/entity/{entity_type}/{entity_id}",
+    tag = "ESignatures",
+    security(("bearer_auth" = [])),
+    params(
+        ("entity_type" = String, Path, description = "Entity type"),
+        ("entity_id" = Uuid, Path, description = "Entity ID"),
+    ),
+    responses((status = 200, body = Vec<e_signature::Model>))
+)]
+pub(crate) async fn list_signatures(
     State(state): State<AppState>,
     Path((entity_type, entity_id)): Path<(String, Uuid)>,
 ) -> Result<Json<Vec<e_signature::Model>>, AppError> {

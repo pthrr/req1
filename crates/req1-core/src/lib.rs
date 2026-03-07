@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 
 pub mod auth;
 pub mod baseline;
@@ -16,7 +17,7 @@ pub mod validation;
 pub type Id = uuid::Uuid;
 
 /// Pagination parameters for list endpoints.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, IntoParams)]
 pub struct Pagination {
     #[serde(default = "default_offset")]
     pub offset: u64,
@@ -33,7 +34,7 @@ const fn default_limit() -> u64 {
 }
 
 /// Paginated response wrapper.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct PaginatedResponse<T: Serialize> {
     pub items: Vec<T>,
     pub total: u64,

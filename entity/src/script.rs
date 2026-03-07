@@ -1,7 +1,10 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize, utoipa::ToSchema,
+)]
+#[schema(as = Script)]
 #[sea_orm(table_name = "script")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
@@ -17,9 +20,13 @@ pub struct Model {
     pub enabled: bool,
     pub priority: i32,
     pub cron_expression: Option<String>,
+    #[schema(value_type = Option<String>)]
     pub last_run_at: Option<DateTimeWithTimeZone>,
+    #[schema(value_type = Option<String>)]
     pub next_run_at: Option<DateTimeWithTimeZone>,
+    #[schema(value_type = String)]
     pub created_at: DateTimeWithTimeZone,
+    #[schema(value_type = String)]
     pub updated_at: DateTimeWithTimeZone,
 }
 

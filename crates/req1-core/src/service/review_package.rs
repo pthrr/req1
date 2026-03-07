@@ -2,6 +2,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::{review_assignment, review_package};
@@ -10,7 +11,7 @@ use crate::PaginatedResponse;
 use crate::error::CoreError;
 use crate::service::e_signature::{ESignatureService, SignInput};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct VotingSummary {
     pub package_id: Uuid,
     pub package_name: String,
@@ -31,7 +32,7 @@ const VALID_STATUSES: &[&str] = &[
     "closed",
 ];
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateReviewPackageInput {
     #[serde(default)]
     pub module_id: Uuid,
@@ -40,7 +41,7 @@ pub struct CreateReviewPackageInput {
     pub created_by: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateReviewPackageInput {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -80,7 +81,7 @@ impl ReviewPackageService {
         let existing = review_package::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("review_package {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("review_package {id} not found")))?;
 
         let mut active: review_package::ActiveModel = existing.into();
         if let Some(name) = input.name {
@@ -91,7 +92,7 @@ impl ReviewPackageService {
         }
         if let Some(ref status) = input.status {
             if !VALID_STATUSES.contains(&status.as_str()) {
-                return Err(CoreError::BadRequest(format!(
+                return Err(CoreError::bad_request(format!(
                     "invalid status '{status}', must be one of: {VALID_STATUSES:?}"
                 )));
             }
@@ -106,7 +107,7 @@ impl ReviewPackageService {
     pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
         let result = review_package::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!(
+            return Err(CoreError::not_found(format!(
                 "review_package {id} not found"
             )));
         }
@@ -120,7 +121,7 @@ impl ReviewPackageService {
         review_package::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("review_package {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("review_package {id} not found")))
     }
 
     pub async fn list(
@@ -202,7 +203,7 @@ impl ReviewPackageService {
         sign_input: Option<SignInput>,
     ) -> Result<review_package::Model, CoreError> {
         if !VALID_STATUSES.contains(&new_status) {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "invalid status '{new_status}', must be one of: {VALID_STATUSES:?}"
             )));
         }
@@ -210,7 +211,7 @@ impl ReviewPackageService {
         let existing = review_package::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("review_package {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("review_package {id} not found")))?;
 
         // Check if signature is required
         let (needs_sig, needs_four_eyes) = ESignatureService::requires_signature(
@@ -223,7 +224,7 @@ impl ReviewPackageService {
 
         if needs_sig {
             let input = sign_input.ok_or_else(|| {
-                CoreError::BadRequest(
+                CoreError::bad_request(
                     "this transition requires an e-signature (password + meaning)".to_owned(),
                 )
             })?;

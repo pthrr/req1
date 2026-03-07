@@ -1,3 +1,5 @@
+#![allow(unused_qualifications)]
+
 use std::collections::HashSet;
 
 use axum::{
@@ -7,6 +9,7 @@ use axum::{
 };
 use sea_orm::{ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder};
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
@@ -19,36 +22,41 @@ pub fn routes() -> Router<AppState> {
 }
 
 #[allow(clippy::struct_field_names)]
-#[derive(Debug, Deserialize)]
-struct TraceabilityMatrixQuery {
+#[derive(Debug, Deserialize, IntoParams)]
+pub(crate) struct TraceabilityMatrixQuery {
     source_module_id: Uuid,
     target_module_id: Uuid,
     link_type_id: Option<Uuid>,
 }
 
-#[derive(Debug, Serialize)]
-struct MatrixObject {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct MatrixObject {
     id: Uuid,
     heading: Option<String>,
     position: i32,
 }
 
-#[derive(Debug, Serialize)]
-struct MatrixCell {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct MatrixCell {
     source_id: Uuid,
     target_id: Uuid,
     link_id: Uuid,
     suspect: bool,
 }
 
-#[derive(Debug, Serialize)]
-struct TraceabilityMatrixResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct TraceabilityMatrixResponse {
     source_objects: Vec<MatrixObject>,
     target_objects: Vec<MatrixObject>,
     cells: Vec<MatrixCell>,
 }
 
-async fn get_traceability_matrix(
+#[utoipa::path(get, path = "/api/v1/traceability-matrix", tag = "Traceability",
+    security(("bearer_auth" = [])),
+    params(TraceabilityMatrixQuery),
+    responses((status = 200, body = TraceabilityMatrixResponse))
+)]
+pub(crate) async fn get_traceability_matrix(
     State(state): State<AppState>,
     Query(params): Query<TraceabilityMatrixQuery>,
 ) -> Result<Json<TraceabilityMatrixResponse>, AppError> {
@@ -139,8 +147,8 @@ async fn get_traceability_matrix(
     Ok(Json(resp))
 }
 
-#[derive(Debug, Serialize)]
-struct CoverageResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct CoverageResponse {
     total_objects: u64,
     with_upstream: u64,
     with_downstream: u64,
@@ -150,8 +158,13 @@ struct CoverageResponse {
     any_link_pct: f64,
 }
 
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/coverage", tag = "Traceability",
+    security(("bearer_auth" = [])),
+    params(("module_id" = Uuid, Path, description = "Module ID")),
+    responses((status = 200, body = CoverageResponse))
+)]
 #[allow(clippy::cast_precision_loss)]
-async fn get_coverage(
+pub(crate) async fn get_coverage(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
 ) -> Result<Json<CoverageResponse>, AppError> {

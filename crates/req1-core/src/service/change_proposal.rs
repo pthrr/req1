@@ -1,12 +1,11 @@
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 use serde::Deserialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::change_proposal;
 
-use crate::PaginatedResponse;
+use crate::crud_service;
 use crate::error::CoreError;
 
 const VALID_STATUSES: &[&str] = &[
@@ -18,21 +17,23 @@ const VALID_STATUSES: &[&str] = &[
     "applied",
 ];
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateChangeProposalInput {
     #[serde(default)]
     pub module_id: Uuid,
     pub title: String,
     pub description: Option<String>,
     pub author_id: Option<Uuid>,
+    #[schema(value_type = Option<Object>)]
     pub diff_data: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateChangeProposalInput {
     pub title: Option<String>,
     pub description: Option<String>,
     pub status: Option<String>,
+    #[schema(value_type = Option<Object>)]
     pub diff_data: Option<serde_json::Value>,
 }
 
@@ -70,7 +71,7 @@ impl ChangeProposalService {
         let existing = change_proposal::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("change_proposal {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("change_proposal {id} not found")))?;
 
         let mut active: change_proposal::ActiveModel = existing.into();
         if let Some(title) = input.title {
@@ -81,7 +82,7 @@ impl ChangeProposalService {
         }
         if let Some(ref status) = input.status {
             if !VALID_STATUSES.contains(&status.as_str()) {
-                return Err(CoreError::BadRequest(format!(
+                return Err(CoreError::bad_request(format!(
                     "invalid status '{status}', must be one of: {VALID_STATUSES:?}"
                 )));
             }
@@ -95,45 +96,11 @@ impl ChangeProposalService {
         let result = active.update(db).await?;
         Ok(result)
     }
-
-    pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
-        let result = change_proposal::Entity::delete_by_id(id).exec(db).await?;
-        if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!(
-                "change_proposal {id} not found"
-            )));
-        }
-        Ok(())
-    }
-
-    pub async fn get(
-        db: &impl ConnectionTrait,
-        id: Uuid,
-    ) -> Result<change_proposal::Model, CoreError> {
-        change_proposal::Entity::find_by_id(id)
-            .one(db)
-            .await?
-            .ok_or_else(|| CoreError::NotFound(format!("change_proposal {id} not found")))
-    }
-
-    pub async fn list(
-        db: &impl ConnectionTrait,
-        module_id: Uuid,
-        offset: u64,
-        limit: u64,
-    ) -> Result<PaginatedResponse<change_proposal::Model>, CoreError> {
-        let paginator = change_proposal::Entity::find()
-            .filter(change_proposal::Column::ModuleId.eq(module_id))
-            .paginate(db, limit);
-        let total = paginator.num_items().await?;
-        let page = offset / limit;
-        let items = paginator.fetch_page(page).await?;
-
-        Ok(PaginatedResponse {
-            items,
-            total,
-            offset,
-            limit,
-        })
-    }
 }
+
+crud_service!(
+    ChangeProposalService,
+    change_proposal::Entity,
+    "change_proposal",
+    parent: change_proposal::Column::ModuleId
+);

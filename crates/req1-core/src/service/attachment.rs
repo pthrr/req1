@@ -19,7 +19,7 @@ impl AttachmentService {
     ) -> Result<attachment::Model, CoreError> {
         let id = Uuid::now_v7();
         let size_bytes = i64::try_from(data.len())
-            .map_err(|_| CoreError::BadRequest("file too large".to_owned()))?;
+            .map_err(|_| CoreError::bad_request("file too large".to_owned()))?;
 
         // Compute SHA-256
         let mut hasher = Sha256::new();
@@ -29,10 +29,10 @@ impl AttachmentService {
         // Store to filesystem: {upload_dir}/{object_id}/{filename}
         let dir = format!("{upload_dir}/{object_id}");
         std::fs::create_dir_all(&dir)
-            .map_err(|e| CoreError::Internal(format!("failed to create upload dir: {e}")))?;
+            .map_err(|e| CoreError::internal(format!("failed to create upload dir: {e}")))?;
         let storage_path = format!("{dir}/{id}_{file_name}");
         std::fs::write(&storage_path, data)
-            .map_err(|e| CoreError::Internal(format!("failed to write file: {e}")))?;
+            .map_err(|e| CoreError::internal(format!("failed to write file: {e}")))?;
 
         let now = chrono::Utc::now().fixed_offset();
         let model = attachment::ActiveModel {
@@ -61,37 +61,34 @@ impl AttachmentService {
         Ok(items)
     }
 
-    pub async fn get(
-        db: &impl ConnectionTrait,
-        id: Uuid,
-    ) -> Result<attachment::Model, CoreError> {
+    pub async fn get(db: &impl ConnectionTrait, id: Uuid) -> Result<attachment::Model, CoreError> {
         attachment::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("attachment {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("attachment {id} not found")))
     }
 
-    pub async fn delete(
-        db: &impl ConnectionTrait,
-        id: Uuid,
-    ) -> Result<(), CoreError> {
+    pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
         let existing = Self::get(db, id).await?;
 
         // Remove file from filesystem
         if std::fs::remove_file(&existing.storage_path).is_err() {
-            tracing::warn!("failed to remove attachment file: {}", existing.storage_path);
+            tracing::warn!(
+                "failed to remove attachment file: {}",
+                existing.storage_path
+            );
         }
 
         let result = attachment::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("attachment {id} not found")));
+            return Err(CoreError::not_found(format!("attachment {id} not found")));
         }
         Ok(())
     }
 
     pub fn read_file(storage_path: &str) -> Result<Vec<u8>, CoreError> {
         std::fs::read(storage_path)
-            .map_err(|e| CoreError::Internal(format!("failed to read file: {e}")))
+            .map_err(|e| CoreError::internal(format!("failed to read file: {e}")))
     }
 
     pub fn verify_integrity(attachment: &attachment::Model, data: &[u8]) -> bool {

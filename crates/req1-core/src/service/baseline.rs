@@ -3,6 +3,7 @@ use sea_orm::{
     Statement,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::{baseline, baseline_entry};
@@ -11,7 +12,7 @@ use crate::PaginatedResponse;
 use crate::baseline as baseline_core;
 use crate::error::CoreError;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateBaselineInput {
     pub module_id: Uuid,
     pub name: String,
@@ -19,7 +20,7 @@ pub struct CreateBaselineInput {
     pub baseline_set_id: Option<Uuid>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct BaselineWithEntries {
     #[serde(flatten)]
     pub baseline: baseline::Model,
@@ -32,7 +33,7 @@ pub struct DiffBaselineInput {
     pub b: Uuid,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct BaselineDiff {
     pub baseline_a: Uuid,
     pub baseline_b: Uuid,
@@ -41,16 +42,17 @@ pub struct BaselineDiff {
     pub modified: Vec<DiffModified>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DiffEntry {
     pub object_id: Uuid,
     pub version: i32,
     pub heading: Option<String>,
     pub body: Option<String>,
+    #[schema(value_type = Option<Object>)]
     pub attributes: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DiffModified {
     pub object_id: Uuid,
     pub version_a: i32,
@@ -59,7 +61,9 @@ pub struct DiffModified {
     pub heading_b: Option<String>,
     pub body_a: Option<String>,
     pub body_b: Option<String>,
+    #[schema(value_type = Option<Object>)]
     pub attributes_a: Option<serde_json::Value>,
+    #[schema(value_type = Option<Object>)]
     pub attributes_b: Option<serde_json::Value>,
 }
 
@@ -100,7 +104,7 @@ impl BaselineService {
         let bl = baseline::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("baseline {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("baseline {id} not found")))?;
 
         let entries = baseline_entry::Entity::find()
             .filter(baseline_entry::Column::BaselineId.eq(id))
@@ -116,7 +120,7 @@ impl BaselineService {
     pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
         let result = baseline::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("baseline {id} not found")));
+            return Err(CoreError::not_found(format!("baseline {id} not found")));
         }
         Ok(())
     }

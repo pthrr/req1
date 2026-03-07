@@ -1,5 +1,6 @@
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, Order, QueryFilter, QueryOrder};
 use serde::Serialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::attribute_definition;
@@ -7,7 +8,7 @@ use entity::attribute_definition;
 use crate::error::CoreError;
 use crate::service::object::{CreateObjectInput, ObjectService};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CsvImportResult {
     pub objects_created: usize,
 }
@@ -24,7 +25,7 @@ impl CsvImportService {
         let _module = entity::module::Entity::find_by_id(module_id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("module {module_id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("module {module_id} not found")))?;
 
         let attr_defs = attribute_definition::Entity::find()
             .filter(attribute_definition::Column::ModuleId.eq(module_id))
@@ -38,7 +39,7 @@ impl CsvImportService {
 
         let headers = rdr
             .headers()
-            .map_err(|e| CoreError::BadRequest(format!("csv header error: {e}")))?
+            .map_err(|e| CoreError::bad_request(format!("csv header error: {e}")))?
             .clone();
 
         // Find column indices for required fields
@@ -65,13 +66,10 @@ impl CsvImportService {
         let mut objects_created: usize = 0;
 
         for result in rdr.records() {
-            let record = result
-                .map_err(|e| CoreError::BadRequest(format!("csv row error: {e}")))?;
+            let record =
+                result.map_err(|e| CoreError::bad_request(format!("csv row error: {e}")))?;
 
-            let level = record
-                .get(level_idx)
-                .unwrap_or("")
-                .to_owned();
+            let level = record.get(level_idx).unwrap_or("").to_owned();
 
             if level.is_empty() {
                 continue;
@@ -101,10 +99,7 @@ impl CsvImportService {
                     if let Some(val) = record.get(*idx)
                         && !val.is_empty()
                     {
-                        let _ = map.insert(
-                            name.clone(),
-                            serde_json::Value::String(val.to_owned()),
-                        );
+                        let _ = map.insert(name.clone(), serde_json::Value::String(val.to_owned()));
                     }
                 }
                 if map.is_empty() {
@@ -145,12 +140,9 @@ impl CsvImportService {
     }
 }
 
-fn find_column(
-    headers: &csv::StringRecord,
-    name: &str,
-) -> Result<usize, CoreError> {
+fn find_column(headers: &csv::StringRecord, name: &str) -> Result<usize, CoreError> {
     headers
         .iter()
         .position(|h| h == name)
-        .ok_or_else(|| CoreError::BadRequest(format!("missing required CSV column: '{name}'")))
+        .ok_or_else(|| CoreError::bad_request(format!("missing required CSV column: '{name}'")))
 }

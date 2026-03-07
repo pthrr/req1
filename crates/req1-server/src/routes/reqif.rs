@@ -1,3 +1,5 @@
+#![allow(unused_qualifications)]
+
 use std::io::Cursor;
 
 use axum::{
@@ -9,6 +11,7 @@ use axum::{
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
@@ -25,8 +28,8 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-#[derive(Debug, Serialize)]
-struct ImportResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct ImportResponse {
     module_id: Uuid,
     objects_created: usize,
     links_created: usize,
@@ -35,7 +38,13 @@ struct ImportResponse {
     link_types_created: usize,
 }
 
-async fn import_reqif_handler(
+#[utoipa::path(post, path = "/api/v1/projects/{project_id}/reqif/import", tag = "ReqIF",
+    security(("bearer_auth" = [])),
+    params(("project_id" = Uuid, Path, description = "Project ID")),
+    request_body(content_type = "multipart/form-data", content = String),
+    responses((status = 201, body = ImportResponse))
+)]
+pub(crate) async fn import_reqif_handler(
     State(state): State<AppState>,
     Path(project_id): Path<Uuid>,
     mut multipart: Multipart,
@@ -43,26 +52,26 @@ async fn import_reqif_handler(
     let field = multipart
         .next_field()
         .await
-        .map_err(|e| AppError::BadRequest(format!("multipart error: {e}")))?
-        .ok_or_else(|| AppError::BadRequest("no file field in request".to_owned()))?;
+        .map_err(|e| AppError::bad_request(format!("multipart error: {e}")))?
+        .ok_or_else(|| AppError::bad_request("no file field in request".to_owned()))?;
 
     let filename = field.file_name().unwrap_or("upload.reqif").to_owned();
     let data = field
         .bytes()
         .await
-        .map_err(|e| AppError::BadRequest(format!("failed to read file: {e}")))?;
+        .map_err(|e| AppError::bad_request(format!("failed to read file: {e}")))?;
 
     let is_reqifz = filename.ends_with(".reqifz");
 
     let doc = if is_reqifz {
         let cursor = Cursor::new(&data);
         req1_reqif::from_reqifz(cursor)
-            .map_err(|e| AppError::BadRequest(format!("invalid reqifz: {e}")))?
+            .map_err(|e| AppError::bad_request(format!("invalid reqifz: {e}")))?
     } else {
         let xml = std::str::from_utf8(&data)
-            .map_err(|e| AppError::BadRequest(format!("invalid UTF-8: {e}")))?;
+            .map_err(|e| AppError::bad_request(format!("invalid UTF-8: {e}")))?;
         req1_reqif::from_xml_str(xml)
-            .map_err(|e| AppError::BadRequest(format!("invalid reqif XML: {e}")))?
+            .map_err(|e| AppError::bad_request(format!("invalid reqif XML: {e}")))?
     };
 
     let result = req1_core::reqif::import::import_reqif(&state.db, project_id, &doc).await?;
@@ -79,8 +88,8 @@ async fn import_reqif_handler(
     Ok((StatusCode::CREATED, axum::Json(response)).into_response())
 }
 
-#[derive(Debug, Deserialize)]
-struct ExportQuery {
+#[derive(Debug, Deserialize, IntoParams)]
+pub(crate) struct ExportQuery {
     #[serde(default = "default_export_format")]
     format: String,
 }
@@ -89,7 +98,17 @@ fn default_export_format() -> String {
     "reqif".to_owned()
 }
 
-async fn export_reqif_handler(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/reqif/export", tag = "ReqIF",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ExportQuery,
+    ),
+    responses(
+        (status = 200, content_type = "application/octet-stream", body = Vec<u8>),
+    )
+)]
+pub(crate) async fn export_reqif_handler(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Query(query): Query<ExportQuery>,
@@ -99,16 +118,19 @@ async fn export_reqif_handler(
     match query.format.as_str() {
         "reqif" => {
             let xml = req1_reqif::to_xml_string(&result.document)
-                .map_err(|e| AppError::Internal(format!("XML serialization failed: {e}")))?;
+                .map_err(|e| AppError::internal(format!("XML serialization failed: {e}")))?;
 
             let mut headers = HeaderMap::new();
-            let _ = headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/xml"));
+            let _ = headers.insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/xml"),
+            );
             let _ = headers.insert(
                 header::CONTENT_DISPOSITION,
-                HeaderValue::from_str(&format!(
-                    "attachment; filename=\"{module_id}.reqif\""
-                ))
-                .unwrap_or_else(|_| HeaderValue::from_static("attachment; filename=\"export.reqif\"")),
+                HeaderValue::from_str(&format!("attachment; filename=\"{module_id}.reqif\""))
+                    .unwrap_or_else(|_| {
+                        HeaderValue::from_static("attachment; filename=\"export.reqif\"")
+                    }),
             );
 
             Ok((headers, xml).into_response())
@@ -117,22 +139,25 @@ async fn export_reqif_handler(
             let mut cursor = Cursor::new(Vec::new());
             let filename = format!("{module_id}.reqif");
             req1_reqif::to_reqifz(&mut cursor, &result.document, &filename)
-                .map_err(|e| AppError::Internal(format!("reqifz serialization failed: {e}")))?;
+                .map_err(|e| AppError::internal(format!("reqifz serialization failed: {e}")))?;
 
             let bytes = cursor.into_inner();
             let mut headers = HeaderMap::new();
-            let _ = headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/zip"));
+            let _ = headers.insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/zip"),
+            );
             let _ = headers.insert(
                 header::CONTENT_DISPOSITION,
-                HeaderValue::from_str(&format!(
-                    "attachment; filename=\"{module_id}.reqifz\""
-                ))
-                .unwrap_or_else(|_| HeaderValue::from_static("attachment; filename=\"export.reqifz\"")),
+                HeaderValue::from_str(&format!("attachment; filename=\"{module_id}.reqifz\""))
+                    .unwrap_or_else(|_| {
+                        HeaderValue::from_static("attachment; filename=\"export.reqifz\"")
+                    }),
             );
 
             Ok((headers, Body::from(bytes)).into_response())
         }
-        other => Err(AppError::BadRequest(format!(
+        other => Err(AppError::bad_request(format!(
             "unsupported format '{other}', supported: reqif, reqifz"
         ))),
     }

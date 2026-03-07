@@ -2,6 +2,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
 };
 use serde::Deserialize;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use entity::app_user;
@@ -11,7 +12,7 @@ use crate::error::CoreError;
 
 const VALID_ROLES: &[&str] = &["admin", "editor", "reviewer", "viewer"];
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateAppUserInput {
     pub email: String,
     pub display_name: String,
@@ -19,7 +20,7 @@ pub struct CreateAppUserInput {
     pub active: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateAppUserInput {
     pub display_name: Option<String>,
     pub role: Option<String>,
@@ -30,7 +31,7 @@ const fn default_limit() -> u64 {
     50
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct ListAppUsersFilter {
     #[serde(default)]
     pub offset: u64,
@@ -51,7 +52,7 @@ impl AppUserService {
 
         let role = input.role.unwrap_or_else(|| "viewer".to_owned());
         if !VALID_ROLES.contains(&role.as_str()) {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "invalid role '{role}', must be one of: {VALID_ROLES:?}"
             )));
         }
@@ -79,7 +80,7 @@ impl AppUserService {
         let existing = app_user::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("app_user {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("app_user {id} not found")))?;
 
         let mut active: app_user::ActiveModel = existing.into();
         if let Some(display_name) = input.display_name {
@@ -87,7 +88,7 @@ impl AppUserService {
         }
         if let Some(ref role) = input.role {
             if !VALID_ROLES.contains(&role.as_str()) {
-                return Err(CoreError::BadRequest(format!(
+                return Err(CoreError::bad_request(format!(
                     "invalid role '{role}', must be one of: {VALID_ROLES:?}"
                 )));
             }
@@ -105,7 +106,7 @@ impl AppUserService {
     pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
         let result = app_user::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("app_user {id} not found")));
+            return Err(CoreError::not_found(format!("app_user {id} not found")));
         }
         Ok(())
     }
@@ -114,7 +115,7 @@ impl AppUserService {
         app_user::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("app_user {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("app_user {id} not found")))
     }
 
     pub async fn list(

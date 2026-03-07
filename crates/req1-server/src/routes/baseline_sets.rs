@@ -26,7 +26,12 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-async fn list_baseline_sets(
+#[utoipa::path(get, path = "/api/v1/baseline-sets", tag = "BaselineSets",
+    security(("bearer_auth" = [])),
+    params(Pagination),
+    responses((status = 200, body = PaginatedResponse<baseline_set::Model>))
+)]
+pub(crate) async fn list_baseline_sets(
     State(state): State<AppState>,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<PaginatedResponse<baseline_set::Model>>, AppError> {
@@ -34,7 +39,12 @@ async fn list_baseline_sets(
     Ok(Json(result))
 }
 
-async fn create_baseline_set(
+#[utoipa::path(post, path = "/api/v1/baseline-sets", tag = "BaselineSets",
+    security(("bearer_auth" = [])),
+    request_body = CreateBaselineSetInput,
+    responses((status = 201, body = baseline_set::Model))
+)]
+pub(crate) async fn create_baseline_set(
     State(state): State<AppState>,
     Json(body): Json<CreateBaselineSetInput>,
 ) -> Result<(axum::http::StatusCode, Json<baseline_set::Model>), AppError> {
@@ -42,7 +52,12 @@ async fn create_baseline_set(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_baseline_set(
+#[utoipa::path(get, path = "/api/v1/baseline-sets/{id}", tag = "BaselineSets",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Baseline set ID")),
+    responses((status = 200, body = baseline_set::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_baseline_set(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<baseline_set::Model>, AppError> {
@@ -50,7 +65,13 @@ async fn get_baseline_set(
     Ok(Json(result))
 }
 
-async fn update_baseline_set(
+#[utoipa::path(patch, path = "/api/v1/baseline-sets/{id}", tag = "BaselineSets",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Baseline set ID")),
+    request_body = UpdateBaselineSetInput,
+    responses((status = 200, body = baseline_set::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn update_baseline_set(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateBaselineSetInput>,
@@ -59,7 +80,12 @@ async fn update_baseline_set(
     Ok(Json(result))
 }
 
-async fn delete_baseline_set(
+#[utoipa::path(delete, path = "/api/v1/baseline-sets/{id}", tag = "BaselineSets",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Baseline set ID")),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_baseline_set(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<axum::http::StatusCode, AppError> {

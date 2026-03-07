@@ -56,7 +56,11 @@ async fn run_due_scripts(db: &DatabaseConnection) -> Result<(), Box<dyn std::err
                 };
 
                 let _ = SchedulerService::record_execution_finish(
-                    db, execution, "success", output_text, None,
+                    db,
+                    execution,
+                    "success",
+                    output_text,
+                    None,
                 )
                 .await;
             }

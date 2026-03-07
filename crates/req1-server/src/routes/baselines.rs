@@ -1,3 +1,5 @@
+#![allow(unused_qualifications)]
+
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
@@ -5,6 +7,7 @@ use axum::{
 };
 use sea_orm::TransactionTrait;
 use serde::Deserialize;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
@@ -30,20 +33,28 @@ pub fn routes() -> Router<AppState> {
         .route("/baselines", get(list_all_baselines))
 }
 
-#[derive(Debug, Deserialize)]
-struct CreateBaselineRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct CreateBaselineRequest {
     name: String,
     description: Option<String>,
     baseline_set_id: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
-struct DiffQuery {
+#[derive(Debug, Deserialize, IntoParams)]
+pub(crate) struct DiffQuery {
     a: Uuid,
     b: Uuid,
 }
 
-async fn list_baselines(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/baselines", tag = "Baselines",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        Pagination,
+    ),
+    responses((status = 200, body = PaginatedResponse<entity::baseline::Model>))
+)]
+pub(crate) async fn list_baselines(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Query(pagination): Query<Pagination>,
@@ -53,7 +64,13 @@ async fn list_baselines(
     Ok(Json(result))
 }
 
-async fn create_baseline(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/baselines", tag = "Baselines",
+    security(("bearer_auth" = [])),
+    params(("module_id" = Uuid, Path, description = "Module ID")),
+    request_body = CreateBaselineRequest,
+    responses((status = 201, body = BaselineWithEntries))
+)]
+pub(crate) async fn create_baseline(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Json(body): Json<CreateBaselineRequest>,
@@ -74,7 +91,15 @@ async fn create_baseline(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_baseline(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/baselines/{id}", tag = "Baselines",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Baseline ID"),
+    ),
+    responses((status = 200, body = BaselineWithEntries), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_baseline(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<BaselineWithEntries>, AppError> {
@@ -82,7 +107,15 @@ async fn get_baseline(
     Ok(Json(result))
 }
 
-async fn delete_baseline(
+#[utoipa::path(delete, path = "/api/v1/modules/{module_id}/baselines/{id}", tag = "Baselines",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Baseline ID"),
+    ),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_baseline(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<axum::http::StatusCode, AppError> {
@@ -90,7 +123,15 @@ async fn delete_baseline(
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
-async fn diff_baselines(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/baseline-diff", tag = "Baselines",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        DiffQuery,
+    ),
+    responses((status = 200, body = BaselineDiff))
+)]
+pub(crate) async fn diff_baselines(
     State(state): State<AppState>,
     Path(_module_id): Path<Uuid>,
     Query(query): Query<DiffQuery>,
@@ -106,7 +147,12 @@ async fn diff_baselines(
     Ok(Json(result))
 }
 
-async fn diff_baselines_global(
+#[utoipa::path(get, path = "/api/v1/baseline-diff", tag = "Baselines",
+    security(("bearer_auth" = [])),
+    params(DiffQuery),
+    responses((status = 200, body = BaselineDiff))
+)]
+pub(crate) async fn diff_baselines_global(
     State(state): State<AppState>,
     Query(query): Query<DiffQuery>,
 ) -> Result<Json<BaselineDiff>, AppError> {
@@ -121,11 +167,15 @@ async fn diff_baselines_global(
     Ok(Json(result))
 }
 
-async fn list_all_baselines(
+#[utoipa::path(get, path = "/api/v1/baselines", tag = "Baselines",
+    security(("bearer_auth" = [])),
+    params(Pagination),
+    responses((status = 200, body = PaginatedResponse<entity::baseline::Model>))
+)]
+pub(crate) async fn list_all_baselines(
     State(state): State<AppState>,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<PaginatedResponse<entity::baseline::Model>>, AppError> {
-    let result =
-        BaselineService::list_all(&state.db, pagination.offset, pagination.limit).await?;
+    let result = BaselineService::list_all(&state.db, pagination.offset, pagination.limit).await?;
     Ok(Json(result))
 }

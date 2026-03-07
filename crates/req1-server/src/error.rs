@@ -2,56 +2,72 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use req1_core::error::CoreError;
 use serde_json::json;
 
-#[derive(Debug, thiserror::Error)]
-#[allow(dead_code)]
-pub enum AppError {
-    #[error("not found: {0}")]
-    NotFound(String),
+#[derive(Debug)]
+pub struct AppError(pub CoreError);
 
-    #[error("bad request: {0}")]
-    BadRequest(String),
-
-    #[error("unauthorized: {0}")]
-    Unauthorized(String),
-
-    #[error("forbidden: {0}")]
-    Forbidden(String),
-
-    #[error("conflict: {0}")]
-    Conflict(String),
-
-    #[error("internal error: {0}")]
-    Internal(String),
-
-    #[error("database error: {0}")]
-    DbError(#[from] sea_orm::DbErr),
+impl std::fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
 
-impl From<req1_core::error::CoreError> for AppError {
-    fn from(err: req1_core::error::CoreError) -> Self {
-        match err {
-            req1_core::error::CoreError::NotFound(msg) => Self::NotFound(msg),
-            req1_core::error::CoreError::BadRequest(msg)
-            | req1_core::error::CoreError::Reqif(msg) => Self::BadRequest(msg),
-            req1_core::error::CoreError::Unauthorized(msg) => Self::Unauthorized(msg),
-            req1_core::error::CoreError::Conflict(msg) => Self::Conflict(msg),
-            req1_core::error::CoreError::Internal(msg) => Self::Internal(msg),
-            req1_core::error::CoreError::Db(db_err) => Self::DbError(db_err),
-        }
+impl std::error::Error for AppError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
+}
+
+impl From<CoreError> for AppError {
+    fn from(err: CoreError) -> Self {
+        Self(err)
+    }
+}
+
+impl From<sea_orm::DbErr> for AppError {
+    fn from(err: sea_orm::DbErr) -> Self {
+        Self(CoreError::Db(err))
+    }
+}
+
+// Convenience constructors — delegate to CoreError
+impl AppError {
+    pub fn not_found(msg: impl Into<String>) -> Self {
+        Self(CoreError::not_found(msg))
+    }
+
+    pub fn bad_request(msg: impl Into<String>) -> Self {
+        Self(CoreError::bad_request(msg))
+    }
+
+    pub fn unauthorized(msg: impl Into<String>) -> Self {
+        Self(CoreError::unauthorized(msg))
+    }
+
+    pub fn forbidden(msg: impl Into<String>) -> Self {
+        Self(CoreError::forbidden(msg))
+    }
+
+    pub fn conflict(msg: impl Into<String>) -> Self {
+        Self(CoreError::conflict(msg))
+    }
+
+    pub fn internal(msg: impl Into<String>) -> Self {
+        Self(CoreError::internal(msg))
     }
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, code, message) = match &self {
-            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, "NOT_FOUND", msg.clone()),
-            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "BAD_REQUEST", msg.clone()),
-            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED", msg.clone()),
-            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, "FORBIDDEN", msg.clone()),
-            AppError::Conflict(msg) => (StatusCode::CONFLICT, "CONFLICT", msg.clone()),
-            AppError::Internal(msg) => {
+        let (status, code, message) = match &self.0 {
+            CoreError::NotFound(msg) => (StatusCode::NOT_FOUND, "NOT_FOUND", msg.clone()),
+            CoreError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "BAD_REQUEST", msg.clone()),
+            CoreError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED", msg.clone()),
+            CoreError::Forbidden(msg) => (StatusCode::FORBIDDEN, "FORBIDDEN", msg.clone()),
+            CoreError::Conflict(msg) => (StatusCode::CONFLICT, "CONFLICT", msg.clone()),
+            CoreError::Internal(msg) => {
                 tracing::error!("Internal error: {msg}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -59,7 +75,7 @@ impl IntoResponse for AppError {
                     "internal server error".to_string(),
                 )
             }
-            AppError::DbError(err) => {
+            CoreError::Db(err) => {
                 tracing::error!("Database error: {err}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,

@@ -1,7 +1,10 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize, utoipa::ToSchema,
+)]
+#[schema(as = ESignature)]
 #[sea_orm(table_name = "e_signature")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
@@ -12,6 +15,7 @@ pub struct Model {
     pub meaning: String,
     pub signature_hash: String,
     pub ip_address: Option<String>,
+    #[schema(value_type = String)]
     pub created_at: DateTimeWithTimeZone,
 }
 

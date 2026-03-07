@@ -4,6 +4,7 @@ use axum::{
     routing::{get, post},
 };
 use serde::Deserialize;
+use utoipa::ToSchema;
 
 use crate::{error::AppError, state::AppState};
 use req1_core::auth::AuthUser;
@@ -21,26 +22,33 @@ pub fn protected_routes() -> Router<AppState> {
         .route("/auth/change-password", post(change_password))
 }
 
-#[derive(Debug, Deserialize)]
-struct RegisterRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct RegisterRequest {
     email: String,
     password: String,
     display_name: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct LoginRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct LoginRequest {
     email: String,
     password: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct ChangePasswordRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct ChangePasswordRequest {
     old_password: String,
     new_password: String,
 }
 
-async fn register(
+#[utoipa::path(post, path = "/api/v1/auth/register", tag = "Auth",
+    request_body = RegisterRequest,
+    responses(
+        (status = 201, body = entity::app_user::Model),
+        (status = 400, description = "Bad request")
+    )
+)]
+pub(crate) async fn register(
     State(state): State<AppState>,
     Json(body): Json<RegisterRequest>,
 ) -> Result<(axum::http::StatusCode, Json<entity::app_user::Model>), AppError> {
@@ -49,7 +57,14 @@ async fn register(
     Ok((axum::http::StatusCode::CREATED, Json(user)))
 }
 
-async fn login(
+#[utoipa::path(post, path = "/api/v1/auth/login", tag = "Auth",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, body = req1_core::service::auth::LoginResponse),
+        (status = 401, description = "Unauthorized")
+    )
+)]
+pub(crate) async fn login(
     State(state): State<AppState>,
     Json(body): Json<LoginRequest>,
 ) -> Result<Json<req1_core::service::auth::LoginResponse>, AppError> {
@@ -64,11 +79,23 @@ async fn login(
     Ok(Json(response))
 }
 
-async fn me(Extension(auth_user): Extension<AuthUser>) -> Json<AuthUser> {
+#[utoipa::path(get, path = "/api/v1/auth/me", tag = "Auth",
+    security(("bearer_auth" = [])),
+    responses((status = 200, body = AuthUser))
+)]
+pub(crate) async fn me(Extension(auth_user): Extension<AuthUser>) -> Json<AuthUser> {
     Json(auth_user)
 }
 
-async fn change_password(
+#[utoipa::path(post, path = "/api/v1/auth/change-password", tag = "Auth",
+    security(("bearer_auth" = [])),
+    request_body = ChangePasswordRequest,
+    responses(
+        (status = 204, description = "Password changed"),
+        (status = 401, description = "Unauthorized")
+    )
+)]
+pub(crate) async fn change_password(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
     Json(body): Json<ChangePasswordRequest>,

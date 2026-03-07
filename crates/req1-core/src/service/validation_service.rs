@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 use serde::Serialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::{link, object, script};
@@ -12,7 +13,7 @@ use crate::scripting::engine::{ScriptEngine, ScriptObject, ScriptWorld, TriggerC
 use super::object::load_world;
 
 /// A single validation issue found in a module.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ValidationIssue {
     pub rule: String,
     pub severity: String,
@@ -22,7 +23,7 @@ pub struct ValidationIssue {
 }
 
 /// Result of validating a module.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ValidationReport {
     pub module_id: String,
     pub issues: Vec<ValidationIssue>,
@@ -41,7 +42,7 @@ impl ValidationService {
         let module = entity::module::Entity::find_by_id(module_id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("module {module_id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("module {module_id} not found")))?;
 
         let objects = object::Entity::find()
             .filter(object::Column::ModuleId.eq(module_id))

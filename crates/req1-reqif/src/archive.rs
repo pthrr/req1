@@ -1,7 +1,7 @@
 use std::io::{BufReader, Read, Seek, Write};
 
-use zip::write::FileOptions;
 use zip::CompressionMethod;
+use zip::write::FileOptions;
 
 use crate::deserialize::from_xml_str;
 use crate::error::ReqifError;

@@ -4,6 +4,7 @@ use axum::{
     routing::{get, post},
 };
 use serde::Deserialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
@@ -38,7 +39,15 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-async fn list_review_packages(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/review-packages", tag = "ReviewPackages",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        Pagination,
+    ),
+    responses((status = 200, body = PaginatedResponse<review_package::Model>))
+)]
+pub(crate) async fn list_review_packages(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Query(pagination): Query<Pagination>,
@@ -49,7 +58,13 @@ async fn list_review_packages(
     Ok(Json(result))
 }
 
-async fn create_review_package(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/review-packages", tag = "ReviewPackages",
+    security(("bearer_auth" = [])),
+    params(("module_id" = Uuid, Path, description = "Module ID")),
+    request_body = CreateReviewPackageInput,
+    responses((status = 201, body = review_package::Model))
+)]
+pub(crate) async fn create_review_package(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Json(body): Json<CreateReviewPackageInput>,
@@ -59,7 +74,15 @@ async fn create_review_package(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_review_package(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/review-packages/{id}", tag = "ReviewPackages",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Review package ID"),
+    ),
+    responses((status = 200, body = review_package::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_review_package(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<review_package::Model>, AppError> {
@@ -67,7 +90,16 @@ async fn get_review_package(
     Ok(Json(result))
 }
 
-async fn update_review_package(
+#[utoipa::path(patch, path = "/api/v1/modules/{module_id}/review-packages/{id}", tag = "ReviewPackages",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Review package ID"),
+    ),
+    request_body = UpdateReviewPackageInput,
+    responses((status = 200, body = review_package::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn update_review_package(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateReviewPackageInput>,
@@ -76,7 +108,15 @@ async fn update_review_package(
     Ok(Json(result))
 }
 
-async fn delete_review_package(
+#[utoipa::path(delete, path = "/api/v1/modules/{module_id}/review-packages/{id}", tag = "ReviewPackages",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Review package ID"),
+    ),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_review_package(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<axum::http::StatusCode, AppError> {
@@ -84,7 +124,12 @@ async fn delete_review_package(
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
-async fn voting_summary(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/review-packages/voting-summary", tag = "ReviewPackages",
+    security(("bearer_auth" = [])),
+    params(("module_id" = Uuid, Path, description = "Module ID")),
+    responses((status = 200, body = Vec<VotingSummary>))
+)]
+pub(crate) async fn voting_summary(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
 ) -> Result<Json<Vec<VotingSummary>>, AppError> {
@@ -92,27 +137,34 @@ async fn voting_summary(
     Ok(Json(result))
 }
 
-#[derive(Debug, Deserialize)]
-struct TransitionRequest {
+#[derive(Debug, Deserialize, ToSchema)]
+pub(crate) struct TransitionRequest {
     status: String,
     password: Option<String>,
     meaning: Option<String>,
 }
 
-async fn transition_status(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/review-packages/{id}/transition", tag = "ReviewPackages",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Review package ID"),
+    ),
+    request_body = TransitionRequest,
+    responses((status = 200, body = review_package::Model))
+)]
+pub(crate) async fn transition_status(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<TransitionRequest>,
 ) -> Result<Json<review_package::Model>, AppError> {
     let sign_input = match (body.password, body.meaning) {
-        (Some(password), Some(meaning)) => {
-            Some(req1_core::service::e_signature::SignInput {
-                password,
-                meaning,
-                ip_address: None,
-            })
-        }
+        (Some(password), Some(meaning)) => Some(req1_core::service::e_signature::SignInput {
+            password,
+            meaning,
+            ip_address: None,
+        }),
         _ => None,
     };
 

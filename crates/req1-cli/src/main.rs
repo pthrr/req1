@@ -950,8 +950,8 @@ async fn cmd_import(
     });
 
     if effective_format == "csv" {
-        let mid = module_id
-            .ok_or_else(|| anyhow::anyhow!("--module-id is required for CSV import"))?;
+        let mid =
+            module_id.ok_or_else(|| anyhow::anyhow!("--module-id is required for CSV import"))?;
 
         let content =
             std::fs::read_to_string(file_path).with_context(|| format!("read {file_path}"))?;

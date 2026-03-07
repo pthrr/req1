@@ -72,16 +72,28 @@ pub struct EnumValue {
     #[serde(rename = "@IDENTIFIER")]
     pub identifier: String,
 
-    #[serde(rename = "@LONG-NAME", skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        rename = "@LONG-NAME",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
     pub long_name: Option<String>,
 
-    #[serde(rename = "@LAST-CHANGE", skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        rename = "@LAST-CHANGE",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
     pub last_change: Option<String>,
 
     #[serde(rename = "@DESC", skip_serializing_if = "Option::is_none", default)]
     pub desc: Option<String>,
 
-    #[serde(rename = "PROPERTIES", skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        rename = "PROPERTIES",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
     pub properties: Option<EnumValueProperties>,
 }
 
@@ -98,7 +110,11 @@ pub struct EmbeddedValue {
     #[serde(rename = "@KEY")]
     pub key: i64,
 
-    #[serde(rename = "@OTHER-CONTENT", skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        rename = "@OTHER-CONTENT",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
     pub other_content: Option<String>,
 }
 

@@ -28,9 +28,7 @@ impl MigrationTrait for Migration {
 
         let _ = manager
             .get_connection()
-            .execute_unprepared(
-                "CREATE INDEX idx_test_case_module ON test_case(module_id)",
-            )
+            .execute_unprepared("CREATE INDEX idx_test_case_module ON test_case(module_id)")
             .await?;
 
         let _ = manager

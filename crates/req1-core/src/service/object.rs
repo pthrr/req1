@@ -4,6 +4,7 @@ use sea_orm::{
     sea_query::{Expr, Value},
 };
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use entity::{attribute_definition, link, object, script};
@@ -22,7 +23,7 @@ use crate::validation;
 
 const VALID_CLASSIFICATIONS: &[&str] = &["normative", "informative", "heading"];
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(tag = "action")]
 pub enum MoveObjectInput {
     #[serde(rename = "up")]
@@ -40,7 +41,7 @@ pub enum MoveObjectInput {
     },
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateObjectInput {
     #[serde(default)]
     pub module_id: Uuid,
@@ -48,8 +49,10 @@ pub struct CreateObjectInput {
     pub position: Option<i32>,
     pub heading: Option<String>,
     pub body: Option<String>,
+    #[schema(value_type = Option<Object>)]
     pub attributes: Option<serde_json::Value>,
     pub classification: Option<String>,
+    #[schema(value_type = Option<Object>)]
     pub references: Option<serde_json::Value>,
     pub object_type_id: Option<Uuid>,
     pub lifecycle_state: Option<String>,
@@ -59,15 +62,17 @@ pub struct CreateObjectInput {
     pub is_placeholder: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateObjectInput {
     pub parent_id: Option<Uuid>,
     pub position: Option<i32>,
     pub heading: Option<String>,
     pub body: Option<String>,
+    #[schema(value_type = Option<Object>)]
     pub attributes: Option<serde_json::Value>,
     pub reviewed: Option<bool>,
     pub classification: Option<String>,
+    #[schema(value_type = Option<Object>)]
     pub references: Option<serde_json::Value>,
     pub object_type_id: Option<Uuid>,
     pub expected_version: Option<i32>,
@@ -78,7 +83,7 @@ const fn default_limit() -> u64 {
     50
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct ListObjectsFilter {
     #[serde(default)]
     pub offset: u64,
@@ -102,7 +107,7 @@ pub async fn load_world(
     let module = entity::module::Entity::find_by_id(module_id)
         .one(db)
         .await?
-        .ok_or_else(|| CoreError::NotFound(format!("module {module_id} not found")))?;
+        .ok_or_else(|| CoreError::not_found(format!("module {module_id} not found")))?;
 
     let objects: Vec<ScriptObject> = object::Entity::find()
         .filter(object::Column::ModuleId.eq(module_id))
@@ -182,7 +187,7 @@ async fn run_triggers(
     for s in &scripts {
         let result = ScriptEngine::run_trigger(&s.source_code, &world, &ctx)?;
         if result.rejected {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "script '{}' rejected: {}",
                 s.name,
                 result
@@ -246,7 +251,9 @@ async fn run_post_triggers(
                     tracing::warn!(
                         "post-trigger '{}' rejected (ignored): {}",
                         s.name,
-                        result.reason.unwrap_or_else(|| "no reason given".to_owned())
+                        result
+                            .reason
+                            .unwrap_or_else(|| "no reason given".to_owned())
                     );
                 } else {
                     all_mutations.extend(result.mutations);
@@ -313,14 +320,14 @@ impl ObjectService {
         let module = entity::module::Entity::find_by_id(input.module_id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("module {} not found", input.module_id)))?;
+            .ok_or_else(|| CoreError::not_found(format!("module {} not found", input.module_id)))?;
 
         let classification = input
             .classification
             .as_deref()
             .unwrap_or(module.default_classification.as_str());
         if !VALID_CLASSIFICATIONS.contains(&classification) {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "invalid classification '{classification}', must be one of: {VALID_CLASSIFICATIONS:?}"
             )));
         }
@@ -367,11 +374,11 @@ impl ObjectService {
             .await?;
         for def in &attr_defs {
             if let Some(ref default_val) = def.default_value {
-                let attrs = final_attributes.get_or_insert_with(|| {
-                    serde_json::Value::Object(serde_json::Map::new())
-                });
+                let attrs = final_attributes
+                    .get_or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
                 if let Some(map) = attrs.as_object_mut() {
-                    let _ = map.entry(&def.name)
+                    let _ = map
+                        .entry(&def.name)
                         .or_insert_with(|| serde_json::Value::String(default_val.clone()));
                 }
             }
@@ -406,10 +413,10 @@ impl ObjectService {
                     .one(db)
                     .await?
                     .ok_or_else(|| {
-                        CoreError::NotFound(format!("source object {source_id} not found"))
+                        CoreError::not_found(format!("source object {source_id} not found"))
                     })?;
                 if source_obj.is_placeholder {
-                    return Err(CoreError::BadRequest(
+                    return Err(CoreError::bad_request(
                         "source object cannot be a placeholder itself (no chains)".to_owned(),
                     ));
                 }
@@ -424,7 +431,7 @@ impl ObjectService {
                     final_attributes.clone_from(&source_obj.attributes);
                 }
             } else {
-                return Err(CoreError::BadRequest(
+                return Err(CoreError::bad_request(
                     "is_placeholder=true requires source_object_id".to_owned(),
                 ));
             }
@@ -498,7 +505,7 @@ impl ObjectService {
         let created = object::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::Internal("object not found after insert".to_owned()))?;
+            .ok_or_else(|| CoreError::internal("object not found after insert".to_owned()))?;
 
         // Run post_save triggers (non-blocking)
         let post_obj = ScriptObject {
@@ -510,8 +517,7 @@ impl ObjectService {
             attributes: created.attributes.clone(),
             version: created.current_version,
         };
-        let post_mutations =
-            run_post_triggers(db, input.module_id, "post_save", &post_obj).await;
+        let post_mutations = run_post_triggers(db, input.module_id, "post_save", &post_obj).await;
         if !post_mutations.is_empty() {
             let mut post_active: object::ActiveModel = created.clone().into();
             apply_mutations(
@@ -525,7 +531,7 @@ impl ObjectService {
             return object::Entity::find_by_id(id)
                 .one(db)
                 .await?
-                .ok_or_else(|| CoreError::Internal("object not found after post_save".to_owned()));
+                .ok_or_else(|| CoreError::internal("object not found after post_save".to_owned()));
         }
 
         Ok(created)
@@ -540,11 +546,14 @@ impl ObjectService {
         let existing = object::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("object {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("object {id} not found")))?;
 
         // Optimistic locking: reject if caller's version is stale
-        if let Some(expected) = input.expected_version.filter(|&v| v != existing.current_version) {
-            return Err(CoreError::Conflict(format!(
+        if let Some(expected) = input
+            .expected_version
+            .filter(|&v| v != existing.current_version)
+        {
+            return Err(CoreError::conflict(format!(
                 "object {id} version conflict: expected {expected}, found {}",
                 existing.current_version
             )));
@@ -575,7 +584,7 @@ impl ObjectService {
         }
         if let Some(ref classification) = input.classification {
             if !VALID_CLASSIFICATIONS.contains(&classification.as_str()) {
-                return Err(CoreError::BadRequest(format!(
+                return Err(CoreError::bad_request(format!(
                     "invalid classification '{classification}', must be one of: {VALID_CLASSIFICATIONS:?}"
                 )));
             }
@@ -607,7 +616,7 @@ impl ObjectService {
         let module = entity::module::Entity::find_by_id(module_id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("module {module_id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("module {module_id} not found")))?;
         let merged_attrs = match (&existing.attributes, &input.attributes) {
             (Some(existing_a), Some(new_a)) => {
                 let mut merged = existing_a.clone();
@@ -713,7 +722,7 @@ impl ObjectService {
         let updated = object::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::Internal("object not found after update".to_owned()))?;
+            .ok_or_else(|| CoreError::internal("object not found after update".to_owned()))?;
 
         // Run post_save triggers (non-blocking)
         let post_obj = ScriptObject {
@@ -725,8 +734,7 @@ impl ObjectService {
             attributes: updated.attributes.clone(),
             version: updated.current_version,
         };
-        let post_mutations =
-            run_post_triggers(db, module_id, "post_save", &post_obj).await;
+        let post_mutations = run_post_triggers(db, module_id, "post_save", &post_obj).await;
         if !post_mutations.is_empty() {
             let mut post_active: object::ActiveModel = updated.clone().into();
             apply_mutations(
@@ -740,7 +748,7 @@ impl ObjectService {
             return object::Entity::find_by_id(id)
                 .one(db)
                 .await?
-                .ok_or_else(|| CoreError::Internal("object not found after post_save".to_owned()));
+                .ok_or_else(|| CoreError::internal("object not found after post_save".to_owned()));
         }
 
         Ok(updated)
@@ -750,7 +758,7 @@ impl ObjectService {
         let existing = object::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("object {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("object {id} not found")))?;
 
         // Run pre_delete trigger
         let script_obj = ScriptObject {
@@ -781,7 +789,7 @@ impl ObjectService {
         let module_id = existing.module_id;
         let result = object::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("object {id} not found")));
+            return Err(CoreError::not_found(format!("object {id} not found")));
         }
 
         level::recompute_module_levels(db, module_id).await?;
@@ -808,7 +816,7 @@ impl ObjectService {
         let existing = object::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("object {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("object {id} not found")))?;
 
         let mut active: object::ActiveModel = existing.into();
         active.deleted_at = Set(Some(chrono::Utc::now().fixed_offset()));
@@ -820,7 +828,7 @@ impl ObjectService {
         object::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("object {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("object {id} not found")))
     }
 
     pub async fn list(
@@ -915,10 +923,10 @@ impl ObjectService {
         let obj = object::Entity::find_by_id(object_id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("object {object_id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("object {object_id} not found")))?;
 
         if obj.module_id != module_id {
-            return Err(CoreError::BadRequest(
+            return Err(CoreError::bad_request(
                 "object does not belong to this module".to_owned(),
             ));
         }
@@ -940,16 +948,16 @@ impl ObjectService {
                 let sibling_idx = siblings
                     .iter()
                     .position(|s| s.id == object_id)
-                    .ok_or_else(|| CoreError::Internal("object not in sibling list".to_owned()))?;
+                    .ok_or_else(|| CoreError::internal("object not in sibling list".to_owned()))?;
                 if sibling_idx == 0 {
-                    return Err(CoreError::BadRequest(
+                    return Err(CoreError::bad_request(
                         "object is already at the top".to_owned(),
                     ));
                 }
 
                 let prev = siblings
                     .get(sibling_idx - 1)
-                    .ok_or_else(|| CoreError::Internal("sibling index out of bounds".to_owned()))?;
+                    .ok_or_else(|| CoreError::internal("sibling index out of bounds".to_owned()))?;
                 let prev_pos = prev.position;
                 let obj_pos = obj.position;
 
@@ -977,16 +985,16 @@ impl ObjectService {
                 let sibling_idx = siblings
                     .iter()
                     .position(|s| s.id == object_id)
-                    .ok_or_else(|| CoreError::Internal("object not in sibling list".to_owned()))?;
+                    .ok_or_else(|| CoreError::internal("object not in sibling list".to_owned()))?;
                 if sibling_idx >= siblings.len() - 1 {
-                    return Err(CoreError::BadRequest(
+                    return Err(CoreError::bad_request(
                         "object is already at the bottom".to_owned(),
                     ));
                 }
 
                 let next = siblings
                     .get(sibling_idx + 1)
-                    .ok_or_else(|| CoreError::Internal("sibling index out of bounds".to_owned()))?;
+                    .ok_or_else(|| CoreError::internal("sibling index out of bounds".to_owned()))?;
                 let next_pos = next.position;
                 let obj_pos = obj.position;
 
@@ -1014,16 +1022,16 @@ impl ObjectService {
                 let sibling_idx = siblings
                     .iter()
                     .position(|s| s.id == object_id)
-                    .ok_or_else(|| CoreError::Internal("object not in sibling list".to_owned()))?;
+                    .ok_or_else(|| CoreError::internal("object not in sibling list".to_owned()))?;
                 if sibling_idx == 0 {
-                    return Err(CoreError::BadRequest(
+                    return Err(CoreError::bad_request(
                         "cannot indent: no previous sibling to become parent".to_owned(),
                     ));
                 }
 
                 let new_parent = siblings
                     .get(sibling_idx - 1)
-                    .ok_or_else(|| CoreError::Internal("sibling index out of bounds".to_owned()))?;
+                    .ok_or_else(|| CoreError::internal("sibling index out of bounds".to_owned()))?;
                 let new_parent_id = new_parent.id;
 
                 // Find max position among children of new parent
@@ -1045,14 +1053,16 @@ impl ObjectService {
             }
             MoveObjectInput::Dedent => {
                 let current_parent_id = obj.parent_id.ok_or_else(|| {
-                    CoreError::BadRequest("cannot dedent: object is already at root level".to_owned())
+                    CoreError::bad_request(
+                        "cannot dedent: object is already at root level".to_owned(),
+                    )
                 })?;
 
                 let parent = object::Entity::find_by_id(current_parent_id)
                     .one(db)
                     .await?
                     .ok_or_else(|| {
-                        CoreError::Internal(format!("parent {current_parent_id} not found"))
+                        CoreError::internal(format!("parent {current_parent_id} not found"))
                     })?;
 
                 let grandparent_id = parent.parent_id;
@@ -1114,7 +1124,7 @@ impl ObjectService {
         object::Entity::find_by_id(object_id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::Internal("object not found after move".to_owned()))
+            .ok_or_else(|| CoreError::internal("object not found after move".to_owned()))
     }
 
     /// Sync a placeholder object with its source, copying heading/body/attributes.
@@ -1125,23 +1135,21 @@ impl ObjectService {
         let existing = object::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("object {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("object {id} not found")))?;
 
         if !existing.is_placeholder {
-            return Err(CoreError::BadRequest(
+            return Err(CoreError::bad_request(
                 "object is not a placeholder".to_owned(),
             ));
         }
         let source_id = existing.source_object_id.ok_or_else(|| {
-            CoreError::Internal("placeholder missing source_object_id".to_owned())
+            CoreError::internal("placeholder missing source_object_id".to_owned())
         })?;
 
         let source = object::Entity::find_by_id(source_id)
             .one(db)
             .await?
-            .ok_or_else(|| {
-                CoreError::NotFound(format!("source object {source_id} not found"))
-            })?;
+            .ok_or_else(|| CoreError::not_found(format!("source object {source_id} not found")))?;
 
         let new_version = existing.current_version + 1;
         let fp = compute_content_fingerprint(
@@ -1179,7 +1187,7 @@ impl ObjectService {
         object::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::Internal("object not found after sync".to_owned()))
+            .ok_or_else(|| CoreError::internal("object not found after sync".to_owned()))
     }
 
     /// Break the placeholder link, making the object independent.
@@ -1190,10 +1198,10 @@ impl ObjectService {
         let existing = object::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("object {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("object {id} not found")))?;
 
         if !existing.is_placeholder {
-            return Err(CoreError::BadRequest(
+            return Err(CoreError::bad_request(
                 "object is not a placeholder".to_owned(),
             ));
         }
@@ -1270,8 +1278,10 @@ impl ObjectService {
                 .all(db)
                 .await?
         };
-        let project_map: std::collections::HashMap<Uuid, Uuid> =
-            projects.into_iter().map(|p| (p.id, p.workspace_id)).collect();
+        let project_map: std::collections::HashMap<Uuid, Uuid> = projects
+            .into_iter()
+            .map(|p| (p.id, p.workspace_id))
+            .collect();
 
         let module_map: std::collections::HashMap<Uuid, (String, Uuid, Uuid)> = modules
             .into_iter()
@@ -1284,10 +1294,8 @@ impl ObjectService {
         let results = objects
             .into_iter()
             .map(|obj| {
-                let (module_name, project_id, workspace_id) = module_map
-                    .get(&obj.module_id)
-                    .cloned()
-                    .unwrap_or_default();
+                let (module_name, project_id, workspace_id) =
+                    module_map.get(&obj.module_id).cloned().unwrap_or_default();
                 GlobalSearchResult {
                     object: obj,
                     module_name,
@@ -1301,7 +1309,7 @@ impl ObjectService {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct GlobalSearchResult {
     #[serde(flatten)]
     pub object: object::Model,
@@ -1326,7 +1334,7 @@ fn check_required_attributes(
             .and_then(|obj| obj.get(attr_name))
             .is_some_and(|v| !v.is_null());
         if !present {
-            return Err(CoreError::BadRequest(format!(
+            return Err(CoreError::bad_request(format!(
                 "missing required attribute '{attr_name}'"
             )));
         }

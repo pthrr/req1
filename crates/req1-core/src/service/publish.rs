@@ -69,7 +69,7 @@ async fn load_publish_data(
     let module = entity::module::Entity::find_by_id(module_id)
         .one(db)
         .await?
-        .ok_or_else(|| CoreError::NotFound(format!("module {module_id} not found")))?;
+        .ok_or_else(|| CoreError::not_found(format!("module {module_id} not found")))?;
 
     let objects = object::Entity::find()
         .filter(object::Column::ModuleId.eq(module_id))
@@ -98,11 +98,11 @@ impl PublishService {
 
         let mut env = minijinja::Environment::new();
         env.add_template("doc", template_src)
-            .map_err(|e| CoreError::Internal(format!("template error: {e}")))?;
+            .map_err(|e| CoreError::internal(format!("template error: {e}")))?;
 
         let tmpl = env
             .get_template("doc")
-            .map_err(|e| CoreError::Internal(format!("template error: {e}")))?;
+            .map_err(|e| CoreError::internal(format!("template error: {e}")))?;
 
         let obj_data: Vec<minijinja::Value> = data
             .objects
@@ -146,7 +146,7 @@ impl PublishService {
         };
 
         tmpl.render(ctx)
-            .map_err(|e| CoreError::Internal(format!("render error: {e}")))
+            .map_err(|e| CoreError::internal(format!("render error: {e}")))
     }
 
     pub async fn render_markdown(
@@ -319,7 +319,7 @@ impl PublishService {
             headers.push(def.name.clone());
         }
         wtr.write_record(&headers)
-            .map_err(|e| CoreError::Internal(format!("csv header error: {e}")))?;
+            .map_err(|e| CoreError::internal(format!("csv header error: {e}")))?;
 
         // Data rows
         for o in &data.objects {
@@ -332,10 +332,7 @@ impl PublishService {
                 o.current_version.to_string(),
             ];
 
-            let attrs = o
-                .attributes
-                .as_ref()
-                .and_then(serde_json::Value::as_object);
+            let attrs = o.attributes.as_ref().and_then(serde_json::Value::as_object);
             for def in &attr_defs {
                 let val = attrs
                     .and_then(|m| m.get(&def.name))
@@ -348,13 +345,13 @@ impl PublishService {
             }
 
             wtr.write_record(&row)
-                .map_err(|e| CoreError::Internal(format!("csv row error: {e}")))?;
+                .map_err(|e| CoreError::internal(format!("csv row error: {e}")))?;
         }
 
         let bytes = wtr
             .into_inner()
-            .map_err(|e| CoreError::Internal(format!("csv flush error: {e}")))?;
-        String::from_utf8(bytes).map_err(|e| CoreError::Internal(format!("csv utf8 error: {e}")))
+            .map_err(|e| CoreError::internal(format!("csv flush error: {e}")))?;
+        String::from_utf8(bytes).map_err(|e| CoreError::internal(format!("csv utf8 error: {e}")))
     }
 
     pub async fn render_yaml(
@@ -407,7 +404,7 @@ impl PublishService {
         };
 
         serde_yaml::to_string(&yaml_doc)
-            .map_err(|e| CoreError::Internal(format!("yaml error: {e}")))
+            .map_err(|e| CoreError::internal(format!("yaml error: {e}")))
     }
 
     pub async fn render_pdf(
@@ -418,7 +415,7 @@ impl PublishService {
         try_wkhtmltopdf(&html)
             .or_else(|_| try_weasyprint(&html))
             .map_err(|e| {
-                CoreError::Internal(format!(
+                CoreError::internal(format!(
                     "PDF generation failed: {e}. Install wkhtmltopdf or weasyprint."
                 ))
             })
@@ -446,11 +443,19 @@ impl PublishService {
         let sheet = workbook.add_worksheet();
         let _ = sheet
             .set_name("Requirements")
-            .map_err(|e| CoreError::Internal(format!("xlsx sheet error: {e}")))?;
+            .map_err(|e| CoreError::internal(format!("xlsx sheet error: {e}")))?;
 
         // Headers
         let mut col: u16 = 0;
-        let base_headers = ["id", "level", "heading", "body", "classification", "version", "lifecycle_state"];
+        let base_headers = [
+            "id",
+            "level",
+            "heading",
+            "body",
+            "classification",
+            "version",
+            "lifecycle_state",
+        ];
         for h in &base_headers {
             let _ = sheet.write_string_with_format(0, col, *h, &bold);
             col += 1;
@@ -469,24 +474,18 @@ impl PublishService {
             let _ = sheet.write_string(row, 3, o.body.as_deref().unwrap_or(""));
             let _ = sheet.write_string(row, 4, &o.classification);
             let _ = sheet.write_number(row, 5, f64::from(o.current_version));
-            let _ = sheet.write_string(
-                row,
-                6,
-                o.lifecycle_state.as_deref().unwrap_or(""),
-            );
+            let _ = sheet.write_string(row, 6, o.lifecycle_state.as_deref().unwrap_or(""));
 
-            let attrs = o
-                .attributes
-                .as_ref()
-                .and_then(serde_json::Value::as_object);
+            let attrs = o.attributes.as_ref().and_then(serde_json::Value::as_object);
             for (i, def) in attr_defs.iter().enumerate() {
                 let attr_col = u16::try_from(base_headers.len() + i).unwrap_or(u16::MAX);
-                let val = attrs
-                    .and_then(|m| m.get(&def.name))
-                    .map_or_else(String::new, |v| match v {
-                        serde_json::Value::String(s) => s.clone(),
-                        other => other.to_string(),
-                    });
+                let val =
+                    attrs
+                        .and_then(|m| m.get(&def.name))
+                        .map_or_else(String::new, |v| match v {
+                            serde_json::Value::String(s) => s.clone(),
+                            other => other.to_string(),
+                        });
                 let _ = sheet.write_string(row, attr_col, &val);
             }
         }
@@ -495,7 +494,7 @@ impl PublishService {
         let meta_sheet = workbook.add_worksheet();
         let _ = meta_sheet
             .set_name("Metadata")
-            .map_err(|e| CoreError::Internal(format!("xlsx sheet error: {e}")))?;
+            .map_err(|e| CoreError::internal(format!("xlsx sheet error: {e}")))?;
 
         let _ = meta_sheet.write_string_with_format(0, 0, "Property", &bold);
         let _ = meta_sheet.write_string_with_format(0, 1, "Value", &bold);
@@ -507,9 +506,7 @@ impl PublishService {
             ("Digits", data.module.digits.to_string()),
             (
                 "Generated At",
-                chrono::Utc::now()
-                    .format("%Y-%m-%d %H:%M UTC")
-                    .to_string(),
+                chrono::Utc::now().format("%Y-%m-%d %H:%M UTC").to_string(),
             ),
             ("Object Count", data.objects.len().to_string()),
         ];
@@ -522,7 +519,7 @@ impl PublishService {
 
         workbook
             .save_to_buffer()
-            .map_err(|e| CoreError::Internal(format!("xlsx save error: {e}")))
+            .map_err(|e| CoreError::internal(format!("xlsx save error: {e}")))
     }
 
     pub async fn render_docx(
@@ -577,16 +574,17 @@ impl PublishService {
                 };
                 // Split into paragraphs on blank lines
                 for line in text.split('\n') {
-                    let para = docx_rs::Paragraph::new()
-                        .add_run(docx_rs::Run::new().add_text(line));
+                    let para =
+                        docx_rs::Paragraph::new().add_run(docx_rs::Run::new().add_text(line));
                     docx = docx.add_paragraph(para);
                 }
             }
         }
 
         let mut buf = std::io::Cursor::new(Vec::new());
-        docx.build().pack(&mut buf)
-            .map_err(|e| CoreError::Internal(format!("docx build error: {e}")))?;
+        docx.build()
+            .pack(&mut buf)
+            .map_err(|e| CoreError::internal(format!("docx build error: {e}")))?;
         Ok(buf.into_inner())
     }
 }
@@ -615,7 +613,10 @@ fn process_plantuml_blocks(body: &str) -> String {
         let replacement = if let Ok(svg) = try_plantuml_cli(source) {
             format!(r#"<div class="plantuml-diagram">{svg}</div>"#)
         } else {
-            let escaped = source.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+            let escaped = source
+                .replace('&', "&amp;")
+                .replace('<', "&lt;")
+                .replace('>', "&gt;");
             format!(r#"<pre class="plantuml-error">{escaped}</pre>"#)
         };
         result = result.replacen(source, &replacement, 1);

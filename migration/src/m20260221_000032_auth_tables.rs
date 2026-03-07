@@ -97,7 +97,9 @@ impl MigrationTrait for Migration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let db = manager.get_connection();
 
-        let _ = db.execute_unprepared("DROP TABLE IF EXISTS audit_log").await?;
+        let _ = db
+            .execute_unprepared("DROP TABLE IF EXISTS audit_log")
+            .await?;
         let _ = db
             .execute_unprepared("DROP TABLE IF EXISTS module_permission")
             .await?;

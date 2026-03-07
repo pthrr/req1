@@ -1,24 +1,23 @@
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 use serde::Deserialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::review_assignment;
 
-use crate::PaginatedResponse;
+use crate::crud_service;
 use crate::error::CoreError;
 
 const VALID_STATUSES: &[&str] = &["pending", "approved", "rejected", "abstained"];
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateReviewAssignmentInput {
     #[serde(default)]
     pub package_id: Uuid,
     pub reviewer_id: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateReviewAssignmentInput {
     pub status: Option<String>,
     pub comment: Option<String>,
@@ -56,12 +55,12 @@ impl ReviewAssignmentService {
         let existing = review_assignment::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("review_assignment {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("review_assignment {id} not found")))?;
 
         let mut active: review_assignment::ActiveModel = existing.into();
         if let Some(ref status) = input.status {
             if !VALID_STATUSES.contains(&status.as_str()) {
-                return Err(CoreError::BadRequest(format!(
+                return Err(CoreError::bad_request(format!(
                     "invalid status '{status}', must be one of: {VALID_STATUSES:?}"
                 )));
             }
@@ -77,45 +76,11 @@ impl ReviewAssignmentService {
         let result = active.update(db).await?;
         Ok(result)
     }
-
-    pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
-        let result = review_assignment::Entity::delete_by_id(id).exec(db).await?;
-        if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!(
-                "review_assignment {id} not found"
-            )));
-        }
-        Ok(())
-    }
-
-    pub async fn get(
-        db: &impl ConnectionTrait,
-        id: Uuid,
-    ) -> Result<review_assignment::Model, CoreError> {
-        review_assignment::Entity::find_by_id(id)
-            .one(db)
-            .await?
-            .ok_or_else(|| CoreError::NotFound(format!("review_assignment {id} not found")))
-    }
-
-    pub async fn list(
-        db: &impl ConnectionTrait,
-        package_id: Uuid,
-        offset: u64,
-        limit: u64,
-    ) -> Result<PaginatedResponse<review_assignment::Model>, CoreError> {
-        let paginator = review_assignment::Entity::find()
-            .filter(review_assignment::Column::PackageId.eq(package_id))
-            .paginate(db, limit);
-        let total = paginator.num_items().await?;
-        let page = offset / limit;
-        let items = paginator.fetch_page(page).await?;
-
-        Ok(PaginatedResponse {
-            items,
-            total,
-            offset,
-            limit,
-        })
-    }
 }
+
+crud_service!(
+    ReviewAssignmentService,
+    review_assignment::Entity,
+    "review_assignment",
+    parent: review_assignment::Column::PackageId
+);

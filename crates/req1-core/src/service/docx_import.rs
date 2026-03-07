@@ -2,6 +2,7 @@ use std::io::{Cursor, Read as _};
 
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::object;
@@ -9,33 +10,33 @@ use entity::object;
 use crate::error::CoreError;
 use crate::service::object::{CreateObjectInput, ObjectService, UpdateObjectInput};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DiscoveredStyle {
     pub style_id: String,
     pub sample_text: String,
     pub count: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DocxPreviewResult {
     pub styles: Vec<DiscoveredStyle>,
     pub paragraph_count: usize,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct StyleMapping {
     pub style_id: String,
     pub classification: String,
     pub is_heading: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct DocxImportInput {
     #[serde(default)]
     pub style_mappings: Vec<StyleMapping>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DocxImportResult {
     pub objects_created: usize,
     pub objects_updated: usize,
@@ -98,7 +99,7 @@ impl DocxImportService {
         let _module = entity::module::Entity::find_by_id(module_id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("module {module_id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("module {module_id} not found")))?;
 
         let paragraphs = parse_docx_paragraphs(data)?;
 
@@ -117,11 +118,7 @@ impl DocxImportService {
                 .all(db)
                 .await?
                 .into_iter()
-                .filter_map(|o| {
-                    o.docx_source_id
-                        .clone()
-                        .map(|docx_id| (docx_id, o))
-                })
+                .filter_map(|o| o.docx_source_id.clone().map(|docx_id| (docx_id, o)))
                 .collect();
 
         let mut objects_created: usize = 0;
@@ -139,9 +136,7 @@ impl DocxImportService {
             .collect();
 
         let is_default_heading = |style: &str| -> bool {
-            style.starts_with("Heading")
-                || style.starts_with("heading")
-                || style == "Title"
+            style.starts_with("Heading") || style.starts_with("heading") || style == "Title"
         };
 
         for para in &paragraphs {
@@ -174,7 +169,7 @@ impl DocxImportService {
                     Some((para.text.clone(), classification, para.bookmark_id.clone()));
             } else {
                 let mapped = mapping_by_style.get(&para.style_id);
-                if mapped.is_some() || pending_heading.is_some() {
+                if mapped.is_some() || (pending_heading.is_some() && mapping_by_style.is_empty()) {
                     body_parts.push(para.text.clone());
                 } else {
                     paragraphs_skipped += 1;
@@ -287,15 +282,16 @@ async fn flush_heading(
 fn parse_docx_paragraphs(data: &[u8]) -> Result<Vec<ParsedParagraph>, CoreError> {
     let cursor = Cursor::new(data);
     let mut archive = zip::ZipArchive::new(cursor)
-        .map_err(|e| CoreError::BadRequest(format!("invalid DOCX file: {e}")))?;
+        .map_err(|e| CoreError::bad_request(format!("invalid DOCX file: {e}")))?;
 
     let mut document_xml = String::new();
     {
         let mut file = archive
             .by_name("word/document.xml")
-            .map_err(|e| CoreError::BadRequest(format!("missing word/document.xml: {e}")))?;
-        let _ = file.read_to_string(&mut document_xml)
-            .map_err(|e| CoreError::BadRequest(format!("cannot read document.xml: {e}")))?;
+            .map_err(|e| CoreError::bad_request(format!("missing word/document.xml: {e}")))?;
+        let _ = file
+            .read_to_string(&mut document_xml)
+            .map_err(|e| CoreError::bad_request(format!("cannot read document.xml: {e}")))?;
     }
 
     parse_document_xml(&document_xml)
@@ -345,7 +341,9 @@ fn parse_document_xml(xml: &str) -> Result<Vec<ParsedParagraph>, CoreError> {
                             if attr.key.local_name().as_ref() == b"name" {
                                 let name = String::from_utf8_lossy(&attr.value).to_string();
                                 if name.starts_with("req1_") {
-                                    current_bookmark = Some(name.strip_prefix("req1_").unwrap_or(&name).to_string());
+                                    current_bookmark = Some(
+                                        name.strip_prefix("req1_").unwrap_or(&name).to_string(),
+                                    );
                                 }
                             }
                         }
@@ -386,9 +384,7 @@ fn parse_document_xml(xml: &str) -> Result<Vec<ParsedParagraph>, CoreError> {
             }
             Ok(Event::Eof) => break,
             Err(e) => {
-                return Err(CoreError::BadRequest(format!(
-                    "XML parse error: {e}"
-                )));
+                return Err(CoreError::bad_request(format!("XML parse error: {e}")));
             }
             _ => {}
         }

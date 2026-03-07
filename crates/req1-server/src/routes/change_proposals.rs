@@ -28,7 +28,16 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-async fn list_change_proposals(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/change-proposals",
+    tag = "ChangeProposals",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        Pagination,
+    ),
+    responses((status = 200, body = PaginatedResponse<change_proposal::Model>))
+)]
+pub(crate) async fn list_change_proposals(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Query(pagination): Query<Pagination>,
@@ -39,7 +48,14 @@ async fn list_change_proposals(
     Ok(Json(result))
 }
 
-async fn create_change_proposal(
+#[utoipa::path(post, path = "/api/v1/modules/{module_id}/change-proposals",
+    tag = "ChangeProposals",
+    security(("bearer_auth" = [])),
+    params(("module_id" = Uuid, Path, description = "Module ID")),
+    request_body = CreateChangeProposalInput,
+    responses((status = 201, body = change_proposal::Model))
+)]
+pub(crate) async fn create_change_proposal(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
     Json(body): Json<CreateChangeProposalInput>,
@@ -49,7 +65,19 @@ async fn create_change_proposal(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_change_proposal(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/change-proposals/{id}",
+    tag = "ChangeProposals",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Change proposal ID"),
+    ),
+    responses(
+        (status = 200, body = change_proposal::Model),
+        (status = 404, description = "Not found"),
+    )
+)]
+pub(crate) async fn get_change_proposal(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<change_proposal::Model>, AppError> {
@@ -57,7 +85,20 @@ async fn get_change_proposal(
     Ok(Json(result))
 }
 
-async fn update_change_proposal(
+#[utoipa::path(patch, path = "/api/v1/modules/{module_id}/change-proposals/{id}",
+    tag = "ChangeProposals",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Change proposal ID"),
+    ),
+    request_body = UpdateChangeProposalInput,
+    responses(
+        (status = 200, body = change_proposal::Model),
+        (status = 404, description = "Not found"),
+    )
+)]
+pub(crate) async fn update_change_proposal(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateChangeProposalInput>,
@@ -66,7 +107,19 @@ async fn update_change_proposal(
     Ok(Json(result))
 }
 
-async fn delete_change_proposal(
+#[utoipa::path(delete, path = "/api/v1/modules/{module_id}/change-proposals/{id}",
+    tag = "ChangeProposals",
+    security(("bearer_auth" = [])),
+    params(
+        ("module_id" = Uuid, Path, description = "Module ID"),
+        ("id" = Uuid, Path, description = "Change proposal ID"),
+    ),
+    responses(
+        (status = 204, description = "Deleted"),
+        (status = 404, description = "Not found"),
+    )
+)]
+pub(crate) async fn delete_change_proposal(
     State(state): State<AppState>,
     Path((_module_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<axum::http::StatusCode, AppError> {

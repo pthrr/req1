@@ -1,13 +1,14 @@
-use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, PaginatorTrait, Set};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 use serde::Deserialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::baseline_set;
 
-use crate::PaginatedResponse;
+use crate::crud_service;
 use crate::error::CoreError;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateBaselineSetInput {
     pub name: String,
     pub version: String,
@@ -15,7 +16,7 @@ pub struct CreateBaselineSetInput {
     pub created_by: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateBaselineSetInput {
     pub name: Option<String>,
     pub version: Option<String>,
@@ -53,7 +54,7 @@ impl BaselineSetService {
         let existing = baseline_set::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("baseline_set {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("baseline_set {id} not found")))?;
 
         let mut active: baseline_set::ActiveModel = existing.into();
         if let Some(name) = input.name {
@@ -69,40 +70,6 @@ impl BaselineSetService {
         let result = active.update(db).await?;
         Ok(result)
     }
-
-    pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
-        let result = baseline_set::Entity::delete_by_id(id).exec(db).await?;
-        if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!("baseline_set {id} not found")));
-        }
-        Ok(())
-    }
-
-    pub async fn get(
-        db: &impl ConnectionTrait,
-        id: Uuid,
-    ) -> Result<baseline_set::Model, CoreError> {
-        baseline_set::Entity::find_by_id(id)
-            .one(db)
-            .await?
-            .ok_or_else(|| CoreError::NotFound(format!("baseline_set {id} not found")))
-    }
-
-    pub async fn list(
-        db: &impl ConnectionTrait,
-        offset: u64,
-        limit: u64,
-    ) -> Result<PaginatedResponse<baseline_set::Model>, CoreError> {
-        let paginator = baseline_set::Entity::find().paginate(db, limit);
-        let total = paginator.num_items().await?;
-        let page = offset / limit;
-        let items = paginator.fetch_page(page).await?;
-
-        Ok(PaginatedResponse {
-            items,
-            total,
-            offset,
-            limit,
-        })
-    }
 }
+
+crud_service!(BaselineSetService, baseline_set::Entity, "baseline_set");

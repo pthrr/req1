@@ -30,14 +30,23 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-async fn list_templates(
+#[utoipa::path(get, path = "/api/v1/project-templates", tag = "ProjectTemplates",
+    security(("bearer_auth" = [])),
+    responses((status = 200, body = Vec<entity::project_template::Model>))
+)]
+pub(crate) async fn list_templates(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<entity::project_template::Model>>, AppError> {
     let items = ProjectTemplateService::list(&state.db).await?;
     Ok(Json(items))
 }
 
-async fn create_template(
+#[utoipa::path(post, path = "/api/v1/project-templates", tag = "ProjectTemplates",
+    security(("bearer_auth" = [])),
+    request_body = CreateTemplateInput,
+    responses((status = 201, body = entity::project_template::Model))
+)]
+pub(crate) async fn create_template(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
     Json(mut body): Json<CreateTemplateInput>,
@@ -47,7 +56,15 @@ async fn create_template(
     Ok((StatusCode::CREATED, Json(result)))
 }
 
-async fn get_template(
+#[utoipa::path(get, path = "/api/v1/project-templates/{id}", tag = "ProjectTemplates",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Template ID")),
+    responses(
+        (status = 200, body = entity::project_template::Model),
+        (status = 404, description = "Not found"),
+    )
+)]
+pub(crate) async fn get_template(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<entity::project_template::Model>, AppError> {
@@ -55,7 +72,16 @@ async fn get_template(
     Ok(Json(result))
 }
 
-async fn update_template(
+#[utoipa::path(patch, path = "/api/v1/project-templates/{id}", tag = "ProjectTemplates",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Template ID")),
+    request_body = UpdateTemplateInput,
+    responses(
+        (status = 200, body = entity::project_template::Model),
+        (status = 404, description = "Not found"),
+    )
+)]
+pub(crate) async fn update_template(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateTemplateInput>,
@@ -64,7 +90,12 @@ async fn update_template(
     Ok(Json(result))
 }
 
-async fn delete_template(
+#[utoipa::path(delete, path = "/api/v1/project-templates/{id}", tag = "ProjectTemplates",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Template ID")),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_template(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
@@ -72,11 +103,24 @@ async fn delete_template(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn instantiate_template(
+#[utoipa::path(post, path = "/api/v1/project-templates/{id}/instantiate",
+    tag = "ProjectTemplates",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Template ID")),
+    request_body = InstantiateInput,
+    responses((status = 201, body = req1_core::service::project_template::InstantiateResult))
+)]
+pub(crate) async fn instantiate_template(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(body): Json<InstantiateInput>,
-) -> Result<(StatusCode, Json<req1_core::service::project_template::InstantiateResult>), AppError> {
+) -> Result<
+    (
+        StatusCode,
+        Json<req1_core::service::project_template::InstantiateResult>,
+    ),
+    AppError,
+> {
     let result = ProjectTemplateService::instantiate(&state.db, id, body).await?;
     Ok((StatusCode::CREATED, Json(result)))
 }

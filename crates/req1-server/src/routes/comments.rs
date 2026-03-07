@@ -26,7 +26,15 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-async fn list_comments(
+#[utoipa::path(get, path = "/api/v1/objects/{object_id}/comments", tag = "Comments",
+    security(("bearer_auth" = [])),
+    params(
+        ("object_id" = Uuid, Path, description = "Object ID"),
+        Pagination,
+    ),
+    responses((status = 200, body = PaginatedResponse<comment::Model>))
+)]
+pub(crate) async fn list_comments(
     State(state): State<AppState>,
     Path(object_id): Path<Uuid>,
     Query(pagination): Query<Pagination>,
@@ -36,7 +44,13 @@ async fn list_comments(
     Ok(Json(result))
 }
 
-async fn create_comment(
+#[utoipa::path(post, path = "/api/v1/objects/{object_id}/comments", tag = "Comments",
+    security(("bearer_auth" = [])),
+    params(("object_id" = Uuid, Path, description = "Object ID")),
+    request_body = CreateCommentInput,
+    responses((status = 201, body = comment::Model))
+)]
+pub(crate) async fn create_comment(
     State(state): State<AppState>,
     Path(object_id): Path<Uuid>,
     Json(body): Json<CreateCommentInput>,
@@ -46,7 +60,15 @@ async fn create_comment(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_comment(
+#[utoipa::path(get, path = "/api/v1/objects/{object_id}/comments/{id}", tag = "Comments",
+    security(("bearer_auth" = [])),
+    params(
+        ("object_id" = Uuid, Path, description = "Object ID"),
+        ("id" = Uuid, Path, description = "Comment ID"),
+    ),
+    responses((status = 200, body = comment::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_comment(
     State(state): State<AppState>,
     Path((_object_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<comment::Model>, AppError> {
@@ -54,7 +76,16 @@ async fn get_comment(
     Ok(Json(result))
 }
 
-async fn update_comment(
+#[utoipa::path(patch, path = "/api/v1/objects/{object_id}/comments/{id}", tag = "Comments",
+    security(("bearer_auth" = [])),
+    params(
+        ("object_id" = Uuid, Path, description = "Object ID"),
+        ("id" = Uuid, Path, description = "Comment ID"),
+    ),
+    request_body = UpdateCommentInput,
+    responses((status = 200, body = comment::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn update_comment(
     State(state): State<AppState>,
     Path((_object_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateCommentInput>,
@@ -63,7 +94,15 @@ async fn update_comment(
     Ok(Json(result))
 }
 
-async fn delete_comment(
+#[utoipa::path(delete, path = "/api/v1/objects/{object_id}/comments/{id}", tag = "Comments",
+    security(("bearer_auth" = [])),
+    params(
+        ("object_id" = Uuid, Path, description = "Object ID"),
+        ("id" = Uuid, Path, description = "Comment ID"),
+    ),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_comment(
     State(state): State<AppState>,
     Path((_object_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<axum::http::StatusCode, AppError> {

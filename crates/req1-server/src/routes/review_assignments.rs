@@ -28,7 +28,15 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-async fn list_assignments(
+#[utoipa::path(get, path = "/api/v1/review-packages/{package_id}/assignments", tag = "ReviewAssignments",
+    security(("bearer_auth" = [])),
+    params(
+        ("package_id" = Uuid, Path, description = "Review package ID"),
+        Pagination,
+    ),
+    responses((status = 200, body = PaginatedResponse<review_assignment::Model>))
+)]
+pub(crate) async fn list_assignments(
     State(state): State<AppState>,
     Path(package_id): Path<Uuid>,
     Query(pagination): Query<Pagination>,
@@ -39,7 +47,13 @@ async fn list_assignments(
     Ok(Json(result))
 }
 
-async fn create_assignment(
+#[utoipa::path(post, path = "/api/v1/review-packages/{package_id}/assignments", tag = "ReviewAssignments",
+    security(("bearer_auth" = [])),
+    params(("package_id" = Uuid, Path, description = "Review package ID")),
+    request_body = CreateReviewAssignmentInput,
+    responses((status = 201, body = review_assignment::Model))
+)]
+pub(crate) async fn create_assignment(
     State(state): State<AppState>,
     Path(package_id): Path<Uuid>,
     Json(body): Json<CreateReviewAssignmentInput>,
@@ -49,7 +63,15 @@ async fn create_assignment(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_assignment(
+#[utoipa::path(get, path = "/api/v1/review-packages/{package_id}/assignments/{id}", tag = "ReviewAssignments",
+    security(("bearer_auth" = [])),
+    params(
+        ("package_id" = Uuid, Path, description = "Review package ID"),
+        ("id" = Uuid, Path, description = "Assignment ID"),
+    ),
+    responses((status = 200, body = review_assignment::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_assignment(
     State(state): State<AppState>,
     Path((_package_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<review_assignment::Model>, AppError> {
@@ -57,7 +79,16 @@ async fn get_assignment(
     Ok(Json(result))
 }
 
-async fn update_assignment(
+#[utoipa::path(patch, path = "/api/v1/review-packages/{package_id}/assignments/{id}", tag = "ReviewAssignments",
+    security(("bearer_auth" = [])),
+    params(
+        ("package_id" = Uuid, Path, description = "Review package ID"),
+        ("id" = Uuid, Path, description = "Assignment ID"),
+    ),
+    request_body = UpdateReviewAssignmentInput,
+    responses((status = 200, body = review_assignment::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn update_assignment(
     State(state): State<AppState>,
     Path((_package_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateReviewAssignmentInput>,
@@ -66,7 +97,15 @@ async fn update_assignment(
     Ok(Json(result))
 }
 
-async fn delete_assignment(
+#[utoipa::path(delete, path = "/api/v1/review-packages/{package_id}/assignments/{id}", tag = "ReviewAssignments",
+    security(("bearer_auth" = [])),
+    params(
+        ("package_id" = Uuid, Path, description = "Review package ID"),
+        ("id" = Uuid, Path, description = "Assignment ID"),
+    ),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_assignment(
     State(state): State<AppState>,
     Path((_package_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<axum::http::StatusCode, AppError> {

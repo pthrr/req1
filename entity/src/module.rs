@@ -1,7 +1,10 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize, utoipa::ToSchema,
+)]
+#[schema(as = Module)]
 #[sea_orm(table_name = "module")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
@@ -13,13 +16,17 @@ pub struct Model {
     pub separator: String,
     pub digits: i32,
     #[sea_orm(column_type = "JsonBinary")]
+    #[schema(value_type = Vec<String>)]
     pub required_attributes: serde_json::Value,
     pub default_classification: String,
     pub publish_template: Option<String>,
     pub default_lifecycle_model_id: Option<Uuid>,
     #[sea_orm(column_type = "JsonBinary")]
+    #[schema(value_type = Object)]
     pub signature_config: serde_json::Value,
+    #[schema(value_type = String)]
     pub created_at: DateTimeWithTimeZone,
+    #[schema(value_type = String)]
     pub updated_at: DateTimeWithTimeZone,
 }
 

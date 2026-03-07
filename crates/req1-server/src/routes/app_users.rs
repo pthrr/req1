@@ -23,7 +23,12 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-async fn list_users(
+#[utoipa::path(get, path = "/api/v1/users", tag = "Users",
+    security(("bearer_auth" = [])),
+    params(ListAppUsersFilter),
+    responses((status = 200, body = PaginatedResponse<app_user::Model>))
+)]
+pub(crate) async fn list_users(
     State(state): State<AppState>,
     Query(filter): Query<ListAppUsersFilter>,
 ) -> Result<Json<PaginatedResponse<app_user::Model>>, AppError> {
@@ -31,7 +36,12 @@ async fn list_users(
     Ok(Json(result))
 }
 
-async fn create_user(
+#[utoipa::path(post, path = "/api/v1/users", tag = "Users",
+    security(("bearer_auth" = [])),
+    request_body = CreateAppUserInput,
+    responses((status = 201, body = app_user::Model))
+)]
+pub(crate) async fn create_user(
     State(state): State<AppState>,
     Json(body): Json<CreateAppUserInput>,
 ) -> Result<(axum::http::StatusCode, Json<app_user::Model>), AppError> {
@@ -39,7 +49,12 @@ async fn create_user(
     Ok((axum::http::StatusCode::CREATED, Json(result)))
 }
 
-async fn get_user(
+#[utoipa::path(get, path = "/api/v1/users/{id}", tag = "Users",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "User ID")),
+    responses((status = 200, body = app_user::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_user(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<app_user::Model>, AppError> {
@@ -47,7 +62,13 @@ async fn get_user(
     Ok(Json(result))
 }
 
-async fn update_user(
+#[utoipa::path(patch, path = "/api/v1/users/{id}", tag = "Users",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "User ID")),
+    request_body = UpdateAppUserInput,
+    responses((status = 200, body = app_user::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn update_user(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateAppUserInput>,
@@ -56,7 +77,12 @@ async fn update_user(
     Ok(Json(result))
 }
 
-async fn delete_user(
+#[utoipa::path(delete, path = "/api/v1/users/{id}", tag = "Users",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "User ID")),
+    responses((status = 204, description = "Deleted"), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn delete_user(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<axum::http::StatusCode, AppError> {

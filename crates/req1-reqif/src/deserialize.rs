@@ -15,8 +15,8 @@ pub fn from_xml_str(xml: &str) -> Result<ReqIf, ReqifError> {
 
 /// Deserialize a `ReqIf` document from a buffered reader.
 pub fn from_xml_reader<R: BufRead>(reader: R) -> Result<ReqIf, ReqifError> {
-    let doc: ReqIf =
-        quick_xml::de::from_reader(reader).map_err(|e| ReqifError::XmlDeserialize(e.to_string()))?;
+    let doc: ReqIf = quick_xml::de::from_reader(reader)
+        .map_err(|e| ReqifError::XmlDeserialize(e.to_string()))?;
     validate_version(&doc)?;
     Ok(doc)
 }

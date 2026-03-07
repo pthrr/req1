@@ -111,6 +111,22 @@ tasks:
       task _wait:vite
       cd frontend && bunx playwright test
 
+  # ── OpenAPI ──────────────────────────────────────────
+  openapi:spec:
+    desc: Export OpenAPI spec from running server
+    cmd: curl -sf http://localhost:8080/api/docs/openapi.json > openapi.json
+
+  openapi:types:
+    desc: Generate TypeScript types from OpenAPI spec
+    dir: frontend
+    cmd: bunx openapi-typescript ../openapi.json -o src/api/schema.d.ts --empty-objects-unknown
+
+  openapi:generate:
+    desc: Export spec + generate TS types (requires running server)
+    cmds:
+      - task: openapi:spec
+      - task: openapi:types
+
   # ── Frontend ─────────────────────────────────────────
   frontend:dev:
     desc: Start Vite dev server and open browser

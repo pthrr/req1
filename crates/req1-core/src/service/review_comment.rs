@@ -1,8 +1,9 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Order, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::review_comment;
@@ -11,7 +12,7 @@ use crate::PaginatedResponse;
 use crate::error::CoreError;
 use crate::service::mention::MentionService;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateReviewCommentInput {
     #[serde(default)]
     pub package_id: Uuid,
@@ -19,7 +20,7 @@ pub struct CreateReviewCommentInput {
     pub body: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateReviewCommentInput {
     pub body: Option<String>,
 }
@@ -74,7 +75,7 @@ impl ReviewCommentService {
         let existing = review_comment::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("review_comment {id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("review_comment {id} not found")))?;
 
         let mut active: review_comment::ActiveModel = existing.into();
         if let Some(body) = input.body {
@@ -89,7 +90,7 @@ impl ReviewCommentService {
     pub async fn delete(db: &impl ConnectionTrait, id: Uuid) -> Result<(), CoreError> {
         let result = review_comment::Entity::delete_by_id(id).exec(db).await?;
         if result.rows_affected == 0 {
-            return Err(CoreError::NotFound(format!(
+            return Err(CoreError::not_found(format!(
                 "review_comment {id} not found"
             )));
         }
@@ -103,7 +104,7 @@ impl ReviewCommentService {
         review_comment::Entity::find_by_id(id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("review_comment {id} not found")))
+            .ok_or_else(|| CoreError::not_found(format!("review_comment {id} not found")))
     }
 
     pub async fn list(

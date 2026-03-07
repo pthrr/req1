@@ -4,6 +4,7 @@ use axum::{
     routing::{get, post},
 };
 use serde::Serialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
@@ -22,7 +23,12 @@ pub fn routes() -> Router<AppState> {
         .route("/notifications/read-all", post(mark_all_read))
 }
 
-async fn list_notifications(
+#[utoipa::path(get, path = "/api/v1/notifications", tag = "Notifications",
+    security(("bearer_auth" = [])),
+    params(ListNotificationsFilter),
+    responses((status = 200, body = PaginatedResponse<notification::Model>))
+)]
+pub(crate) async fn list_notifications(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
     Query(filter): Query<ListNotificationsFilter>,
@@ -31,12 +37,16 @@ async fn list_notifications(
     Ok(Json(result))
 }
 
-#[derive(Serialize)]
-struct UnreadCountResponse {
+#[derive(Serialize, ToSchema)]
+pub(crate) struct UnreadCountResponse {
     count: u64,
 }
 
-async fn unread_count(
+#[utoipa::path(get, path = "/api/v1/notifications/unread-count", tag = "Notifications",
+    security(("bearer_auth" = [])),
+    responses((status = 200, body = UnreadCountResponse))
+)]
+pub(crate) async fn unread_count(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
 ) -> Result<Json<UnreadCountResponse>, AppError> {
@@ -44,7 +54,12 @@ async fn unread_count(
     Ok(Json(UnreadCountResponse { count }))
 }
 
-async fn mark_read(
+#[utoipa::path(post, path = "/api/v1/notifications/{id}/read", tag = "Notifications",
+    security(("bearer_auth" = [])),
+    params(("id" = Uuid, Path, description = "Notification ID")),
+    responses((status = 200, body = notification::Model), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn mark_read(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
     Path(id): Path<Uuid>,
@@ -53,12 +68,16 @@ async fn mark_read(
     Ok(Json(result))
 }
 
-#[derive(Serialize)]
-struct MarkAllReadResponse {
+#[derive(Serialize, ToSchema)]
+pub(crate) struct MarkAllReadResponse {
     updated: u64,
 }
 
-async fn mark_all_read(
+#[utoipa::path(post, path = "/api/v1/notifications/read-all", tag = "Notifications",
+    security(("bearer_auth" = [])),
+    responses((status = 200, body = MarkAllReadResponse))
+)]
+pub(crate) async fn mark_all_read(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
 ) -> Result<Json<MarkAllReadResponse>, AppError> {

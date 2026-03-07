@@ -45,7 +45,8 @@
       "WebFetch(domain:deno.com)",
       "WebFetch(domain:www.omg.org)",
       "Bash(ls:*)",
-      "Bash(npx vite build:*)"
+      "Bash(npx vite build:*)",
+      "Bash(git status:*)"
     ]
   }
 }

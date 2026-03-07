@@ -12,7 +12,12 @@ pub fn routes() -> Router<AppState> {
     Router::new().route("/modules/{module_id}/validate", get(validate_module))
 }
 
-async fn validate_module(
+#[utoipa::path(get, path = "/api/v1/modules/{module_id}/validate", tag = "Validation",
+    security(("bearer_auth" = [])),
+    params(("module_id" = Uuid, Path, description = "Module ID")),
+    responses((status = 200, body = ValidationReport))
+)]
+pub(crate) async fn validate_module(
     State(state): State<AppState>,
     Path(module_id): Path<Uuid>,
 ) -> Result<Json<ValidationReport>, AppError> {

@@ -12,7 +12,7 @@ pub async fn validate_attributes(
 ) -> Result<(), CoreError> {
     let obj = attributes
         .as_object()
-        .ok_or_else(|| CoreError::BadRequest("attributes must be a JSON object".to_owned()))?;
+        .ok_or_else(|| CoreError::bad_request("attributes must be a JSON object".to_owned()))?;
 
     if obj.is_empty() {
         return Ok(());
@@ -33,7 +33,7 @@ pub async fn validate_attributes(
     for (key, value) in obj {
         let def = def_map
             .get(key.as_str())
-            .ok_or_else(|| CoreError::BadRequest(format!("unknown attribute '{key}'")))?;
+            .ok_or_else(|| CoreError::bad_request(format!("unknown attribute '{key}'")))?;
 
         if value.is_null() {
             continue;
@@ -42,35 +42,35 @@ pub async fn validate_attributes(
         match def.data_type.as_str() {
             "string" | "rich_text" | "user_ref" | "date" => {
                 if !value.is_string() {
-                    return Err(CoreError::BadRequest(format!(
+                    return Err(CoreError::bad_request(format!(
                         "attribute '{key}' must be a string"
                     )));
                 }
             }
             "integer" => {
                 if !value.is_i64() && !value.is_u64() {
-                    return Err(CoreError::BadRequest(format!(
+                    return Err(CoreError::bad_request(format!(
                         "attribute '{key}' must be an integer"
                     )));
                 }
             }
             "float" => {
                 if !value.is_number() {
-                    return Err(CoreError::BadRequest(format!(
+                    return Err(CoreError::bad_request(format!(
                         "attribute '{key}' must be a number"
                     )));
                 }
             }
             "bool" => {
                 if !value.is_boolean() {
-                    return Err(CoreError::BadRequest(format!(
+                    return Err(CoreError::bad_request(format!(
                         "attribute '{key}' must be a boolean"
                     )));
                 }
             }
             "enum" => {
                 let val_str = value.as_str().ok_or_else(|| {
-                    CoreError::BadRequest(format!("attribute '{key}' must be a string"))
+                    CoreError::bad_request(format!("attribute '{key}' must be a string"))
                 })?;
                 if let Some(ref ev) = def.enum_values {
                     let allowed: Vec<&str> = ev
@@ -78,7 +78,7 @@ pub async fn validate_attributes(
                         .map(|a| a.iter().filter_map(|v| v.as_str()).collect())
                         .unwrap_or_default();
                     if !allowed.contains(&val_str) {
-                        return Err(CoreError::BadRequest(format!(
+                        return Err(CoreError::bad_request(format!(
                             "attribute '{key}' value '{val_str}' not in allowed values: {allowed:?}"
                         )));
                     }
@@ -100,7 +100,7 @@ pub async fn check_object_type_constraints(
         .one(db)
         .await?
         .ok_or_else(|| {
-            CoreError::BadRequest(format!("object type '{object_type_id}' not found"))
+            CoreError::bad_request(format!("object type '{object_type_id}' not found"))
         })?;
 
     // Check required attributes from the object type
@@ -113,7 +113,7 @@ pub async fn check_object_type_constraints(
                 .and_then(|obj| obj.get(attr_name))
                 .is_some_and(|v| !v.is_null());
             if !present {
-                return Err(CoreError::BadRequest(format!(
+                return Err(CoreError::bad_request(format!(
                     "object type '{}' requires attribute '{attr_name}'",
                     object_type.name
                 )));
@@ -140,7 +140,7 @@ pub async fn check_object_type_constraints(
                     _ => true,
                 };
                 if !valid {
-                    return Err(CoreError::BadRequest(format!(
+                    return Err(CoreError::bad_request(format!(
                         "attribute '{key}' must be of type '{expected_type}' per object type '{}'",
                         object_type.name
                     )));
@@ -161,13 +161,13 @@ pub fn validate_attr_constraints(
         match enum_values {
             Some(v) if v.as_array().is_some_and(|a| !a.is_empty()) => {}
             _ => {
-                return Err(CoreError::BadRequest(
+                return Err(CoreError::bad_request(
                     "enum type requires a non-empty enum_values array".to_owned(),
                 ));
             }
         }
     } else if enum_values.is_some() {
-        return Err(CoreError::BadRequest(format!(
+        return Err(CoreError::bad_request(format!(
             "enum_values may only be set when data_type is 'enum', not '{data_type}'"
         )));
     }
@@ -176,21 +176,21 @@ pub fn validate_attr_constraints(
         match data_type {
             "integer" => {
                 if val.parse::<i64>().is_err() {
-                    return Err(CoreError::BadRequest(format!(
+                    return Err(CoreError::bad_request(format!(
                         "default_value '{val}' is not a valid integer"
                     )));
                 }
             }
             "float" => {
                 if val.parse::<f64>().is_err() {
-                    return Err(CoreError::BadRequest(format!(
+                    return Err(CoreError::bad_request(format!(
                         "default_value '{val}' is not a valid float"
                     )));
                 }
             }
             "bool" => {
                 if val != "true" && val != "false" {
-                    return Err(CoreError::BadRequest(format!(
+                    return Err(CoreError::bad_request(format!(
                         "default_value '{val}' is not a valid bool (expected 'true' or 'false')"
                     )));
                 }
@@ -202,7 +202,7 @@ pub fn validate_attr_constraints(
                         .map(|a| a.iter().filter_map(|v| v.as_str()).collect())
                         .unwrap_or_default();
                     if !allowed.contains(&val.as_str()) {
-                        return Err(CoreError::BadRequest(format!(
+                        return Err(CoreError::bad_request(format!(
                             "default_value '{val}' is not in enum_values: {allowed:?}"
                         )));
                     }

@@ -29,8 +29,8 @@ fn reqifz_no_reqif_file() {
     {
         let cursor = Cursor::new(&mut buf);
         let mut zip = zip::ZipWriter::new(cursor);
-        let options =
-            zip::write::FileOptions::<()>::default().compression_method(zip::CompressionMethod::Stored);
+        let options = zip::write::FileOptions::<()>::default()
+            .compression_method(zip::CompressionMethod::Stored);
         zip.start_file("readme.txt", options).unwrap();
         std::io::Write::write_all(&mut zip, b"not a reqif").unwrap();
         let _ = zip.finish().unwrap();

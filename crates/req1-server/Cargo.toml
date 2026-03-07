@@ -25,6 +25,9 @@ jsonwebtoken = { workspace = true }
 req1-reqif = { path = "../req1-reqif" }
 entity = { path = "../../entity" }
 migration = { path = "../../migration" }
+utoipa = { workspace = true }
+utoipa-axum = { workspace = true }
+utoipa-swagger-ui = { workspace = true }
 
 [dev-dependencies]
 tower = { workspace = true }

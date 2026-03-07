@@ -3,6 +3,7 @@ use std::io::Cursor;
 use calamine::{Reader, Xlsx};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, Order, QueryFilter, QueryOrder};
 use serde::Serialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::attribute_definition;
@@ -10,7 +11,7 @@ use entity::attribute_definition;
 use crate::error::CoreError;
 use crate::service::object::{CreateObjectInput, ObjectService, UpdateObjectInput};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct XlsxImportResult {
     pub objects_created: usize,
     pub objects_updated: usize,
@@ -29,7 +30,7 @@ impl XlsxImportService {
         let _module = entity::module::Entity::find_by_id(module_id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound(format!("module {module_id} not found")))?;
+            .ok_or_else(|| CoreError::not_found(format!("module {module_id} not found")))?;
 
         let attr_defs = attribute_definition::Entity::find()
             .filter(attribute_definition::Column::ModuleId.eq(module_id))
@@ -41,7 +42,7 @@ impl XlsxImportService {
 
         let cursor = Cursor::new(data);
         let mut workbook: Xlsx<_> = Xlsx::new(cursor)
-            .map_err(|e| CoreError::BadRequest(format!("invalid XLSX file: {e}")))?;
+            .map_err(|e| CoreError::bad_request(format!("invalid XLSX file: {e}")))?;
 
         // Find the Requirements sheet, or fall back to first sheet
         let sheet_names = workbook.sheet_names().clone();
@@ -51,12 +52,12 @@ impl XlsxImportService {
             sheet_names
                 .into_iter()
                 .next()
-                .ok_or_else(|| CoreError::BadRequest("XLSX file has no sheets".to_owned()))?
+                .ok_or_else(|| CoreError::bad_request("XLSX file has no sheets".to_owned()))?
         };
 
-        let range = workbook
-            .worksheet_range(&sheet_name)
-            .map_err(|e| CoreError::BadRequest(format!("cannot read sheet '{sheet_name}': {e}")))?;
+        let range = workbook.worksheet_range(&sheet_name).map_err(|e| {
+            CoreError::bad_request(format!("cannot read sheet '{sheet_name}': {e}"))
+        })?;
 
         let rows: Vec<Vec<String>> = range
             .rows()
@@ -86,7 +87,7 @@ impl XlsxImportService {
         let level_idx = headers
             .iter()
             .position(|h| h == "level")
-            .ok_or_else(|| CoreError::BadRequest("missing 'level' column in XLSX".to_owned()))?;
+            .ok_or_else(|| CoreError::bad_request("missing 'level' column in XLSX".to_owned()))?;
         let heading_idx = headers.iter().position(|h| h == "heading");
         let body_idx = headers.iter().position(|h| h == "body");
         let classification_idx = headers.iter().position(|h| h == "classification");
@@ -157,10 +158,7 @@ impl XlsxImportService {
                     if let Some(val) = row.get(*idx)
                         && !val.is_empty()
                     {
-                        let _ = map.insert(
-                            name.clone(),
-                            serde_json::Value::String(val.clone()),
-                        );
+                        let _ = map.insert(name.clone(), serde_json::Value::String(val.clone()));
                     }
                 }
                 if map.is_empty() {

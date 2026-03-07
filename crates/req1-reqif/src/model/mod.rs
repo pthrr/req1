@@ -53,18 +53,38 @@ pub struct ReqIfContent {
     #[serde(rename = "DATATYPES", skip_serializing_if = "Option::is_none", default)]
     pub datatypes: Option<Datatypes>,
 
-    #[serde(rename = "SPEC-TYPES", skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        rename = "SPEC-TYPES",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
     pub spec_types: Option<SpecTypes>,
 
-    #[serde(rename = "SPEC-OBJECTS", skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        rename = "SPEC-OBJECTS",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
     pub spec_objects: Option<SpecObjects>,
 
-    #[serde(rename = "SPEC-RELATIONS", skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        rename = "SPEC-RELATIONS",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
     pub spec_relations: Option<SpecRelations>,
 
-    #[serde(rename = "SPECIFICATIONS", skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        rename = "SPECIFICATIONS",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
     pub specifications: Option<Specifications>,
 
-    #[serde(rename = "SPEC-RELATION-GROUPS", skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        rename = "SPEC-RELATION-GROUPS",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
     pub spec_relation_groups: Option<SpecRelationGroups>,
 }

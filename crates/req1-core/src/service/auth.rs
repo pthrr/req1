@@ -1,5 +1,6 @@
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use serde::Serialize;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use entity::app_user;
@@ -7,7 +8,7 @@ use entity::app_user;
 use crate::auth::{AuthUser, Claims};
 use crate::error::CoreError;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct LoginResponse {
     pub token: String,
     pub user: app_user::Model,
@@ -28,13 +29,13 @@ impl AuthService {
             .await?;
 
         if existing.is_some() {
-            return Err(CoreError::Conflict(format!(
+            return Err(CoreError::conflict(format!(
                 "user with email '{email}' already exists"
             )));
         }
 
         let password_hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)
-            .map_err(|e| CoreError::Internal(format!("failed to hash password: {e}")))?;
+            .map_err(|e| CoreError::internal(format!("failed to hash password: {e}")))?;
 
         let now = chrono::Utc::now().fixed_offset();
         let id = Uuid::now_v7();
@@ -61,19 +62,20 @@ impl AuthService {
         jwt_secret: &str,
         exp_hours: u64,
     ) -> Result<LoginResponse, CoreError> {
-        let hash = user.password_hash.as_deref().ok_or_else(|| {
-            CoreError::Unauthorized("account has no password set".to_string())
-        })?;
+        let hash = user
+            .password_hash
+            .as_deref()
+            .ok_or_else(|| CoreError::unauthorized("account has no password set".to_string()))?;
 
         let valid = bcrypt::verify(password, hash)
-            .map_err(|e| CoreError::Internal(format!("bcrypt verify error: {e}")))?;
+            .map_err(|e| CoreError::internal(format!("bcrypt verify error: {e}")))?;
 
         if !valid {
-            return Err(CoreError::Unauthorized("invalid credentials".to_string()));
+            return Err(CoreError::unauthorized("invalid credentials".to_string()));
         }
 
         if !user.active {
-            return Err(CoreError::Unauthorized("account is disabled".to_string()));
+            return Err(CoreError::unauthorized("account is disabled".to_string()));
         }
 
         let now = chrono::Utc::now();
@@ -94,7 +96,7 @@ impl AuthService {
             &claims,
             &jsonwebtoken::EncodingKey::from_secret(jwt_secret.as_bytes()),
         )
-        .map_err(|e| CoreError::Internal(format!("JWT encode error: {e}")))?;
+        .map_err(|e| CoreError::internal(format!("JWT encode error: {e}")))?;
 
         Ok(LoginResponse {
             token,
@@ -113,7 +115,7 @@ impl AuthService {
             .filter(app_user::Column::Email.eq(email))
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::Unauthorized("invalid credentials".to_string()))?;
+            .ok_or_else(|| CoreError::unauthorized("invalid credentials".to_string()))?;
 
         Self::login_with_user(&user, password, jwt_secret, exp_hours)
     }
@@ -125,13 +127,13 @@ impl AuthService {
             &jsonwebtoken::DecodingKey::from_secret(jwt_secret.as_bytes()),
             &jsonwebtoken::Validation::default(),
         )
-        .map_err(|e| CoreError::Unauthorized(format!("invalid token: {e}")))?;
+        .map_err(|e| CoreError::unauthorized(format!("invalid token: {e}")))?;
 
         let user_id: Uuid = data
             .claims
             .sub
             .parse()
-            .map_err(|_| CoreError::Unauthorized("invalid token subject".to_string()))?;
+            .map_err(|_| CoreError::unauthorized("invalid token subject".to_string()))?;
 
         Ok(AuthUser {
             id: user_id,
@@ -149,23 +151,24 @@ impl AuthService {
         let user = app_user::Entity::find_by_id(user_id)
             .one(db)
             .await?
-            .ok_or_else(|| CoreError::NotFound("user not found".to_string()))?;
+            .ok_or_else(|| CoreError::not_found("user not found".to_string()))?;
 
-        let hash = user.password_hash.as_deref().ok_or_else(|| {
-            CoreError::Unauthorized("account has no password set".to_string())
-        })?;
+        let hash = user
+            .password_hash
+            .as_deref()
+            .ok_or_else(|| CoreError::unauthorized("account has no password set".to_string()))?;
 
         let valid = bcrypt::verify(old_password, hash)
-            .map_err(|e| CoreError::Internal(format!("bcrypt verify error: {e}")))?;
+            .map_err(|e| CoreError::internal(format!("bcrypt verify error: {e}")))?;
 
         if !valid {
-            return Err(CoreError::Unauthorized(
+            return Err(CoreError::unauthorized(
                 "current password is incorrect".to_string(),
             ));
         }
 
         let new_hash = bcrypt::hash(new_password, bcrypt::DEFAULT_COST)
-            .map_err(|e| CoreError::Internal(format!("failed to hash password: {e}")))?;
+            .map_err(|e| CoreError::internal(format!("failed to hash password: {e}")))?;
 
         let mut active: app_user::ActiveModel = user.into();
         active.password_hash = Set(Some(new_hash));

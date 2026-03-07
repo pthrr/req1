@@ -1,3 +1,5 @@
+#![allow(unused_qualifications)]
+
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use axum::{
@@ -7,6 +9,7 @@ use axum::{
 };
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
@@ -16,14 +19,14 @@ pub fn routes() -> Router<AppState> {
     Router::new().route("/object-impact/{id}", get(get_impact))
 }
 
-#[derive(Debug, Deserialize)]
-struct ImpactQuery {
+#[derive(Debug, Deserialize, IntoParams)]
+pub(crate) struct ImpactQuery {
     direction: Option<String>,
     max_depth: Option<u32>,
 }
 
-#[derive(Debug, Serialize)]
-struct ImpactObject {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct ImpactObject {
     id: Uuid,
     heading: Option<String>,
     level: String,
@@ -32,16 +35,16 @@ struct ImpactObject {
     module_id: Uuid,
 }
 
-#[derive(Debug, Serialize)]
-struct ImpactEdge {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct ImpactEdge {
     source_id: Uuid,
     target_id: Uuid,
     link_type: Option<String>,
     suspect: bool,
 }
 
-#[derive(Debug, Serialize)]
-struct ImpactResponse {
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct ImpactResponse {
     root_id: Uuid,
     direction: String,
     max_depth: u32,
@@ -131,7 +134,15 @@ fn bfs_traverse(
     (result_entries, edge_entries)
 }
 
-async fn get_impact(
+#[utoipa::path(get, path = "/api/v1/object-impact/{id}", tag = "Impact",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = Uuid, Path, description = "Root object ID"),
+        ImpactQuery,
+    ),
+    responses((status = 200, body = ImpactResponse), (status = 404, description = "Not found"))
+)]
+pub(crate) async fn get_impact(
     State(state): State<AppState>,
     Path(root_id): Path<Uuid>,
     Query(query): Query<ImpactQuery>,
@@ -141,7 +152,7 @@ async fn get_impact(
 
     // Validate direction
     if !["forward", "backward", "both"].contains(&direction) {
-        return Err(AppError::BadRequest(format!(
+        return Err(AppError::bad_request(format!(
             "invalid direction '{direction}', must be one of: forward, backward, both"
         )));
     }
@@ -150,7 +161,7 @@ async fn get_impact(
     let _root = object::Entity::find_by_id(root_id)
         .one(&state.db)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("object {root_id} not found")))?;
+        .ok_or_else(|| AppError::not_found(format!("object {root_id} not found")))?;
 
     let all_links = link::Entity::find().all(&state.db).await?;
     let (result_entries, edge_entries) = bfs_traverse(root_id, direction, max_depth, &all_links);
