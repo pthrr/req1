@@ -20,9 +20,9 @@
 | Rich text editor | **TipTap** | 🔮 | Extensible ProseMirror-based editor for requirement body content |
 | Tree view | **react-arborist** + **dnd-kit** | 🔮 | Hierarchical outline with drag-and-drop reordering |
 | Routing | **React Router v7** | ✅ | Client-side routing with nested layouts |
-| Authentication | **openidconnect** crate + **argon2** | 🔮 | OIDC for corporate SSO; argon2 for local password hashing (OWASP standard) |
-| JWT | **jsonwebtoken** crate | 🔮 | API token generation and validation |
-| ReqIF | **quick-xml** + **serde** (custom crate) | 🔮 | No existing Rust ReqIF crate. Structs matching ReqIF XSD with serde derive |
+| Authentication | **bcrypt** (local auth) | ✅ | Local password hashing with JWT sessions; OIDC for corporate SSO planned |
+| JWT | **jsonwebtoken** crate | ✅ | API token generation and validation |
+| ReqIF | **quick-xml** + **serde** (custom crate) | ✅ | Custom `req1-reqif` crate. Structs matching ReqIF XSD with serde derive |
 | HTML publishing | **minijinja** + **pulldown-cmark** | ✅ | Template-based HTML rendering with markdown-to-HTML conversion |
 | PDF export | **typst** | 🔮 | Rust-native typesetting with programmable templates |
 | DOCX export | **docx-rs** | 🔮 | Direct .docx generation from Rust |

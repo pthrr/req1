@@ -67,15 +67,16 @@ req1/
 │   ├── req1-core/       Business logic — services, validation, scripting, fingerprinting, ReqIF entity mapping
 │   ├── req1-cli/        CLI client — clap-based, talks to server REST API
 │   └── req1-reqif/      ReqIF 1.2 XML library — model structs, serialize/deserialize, .reqifz archive support
-├── entity/              Sea-ORM entities — 21 database models
-└── migration/           Sea-ORM migrations — 23 sequential migrations
+├── entity/              Sea-ORM entities — 35 database models
+└── migration/           Sea-ORM migrations — 40 sequential migrations
 ```
 
-### req1-server Route Modules (23 files)
+### req1-server Route Modules (34 files)
 
 | Route module | Endpoints |
 |-------------|-----------|
-| `health.rs` | `GET /health/ready` |
+| `health.rs` | `GET /health/ready`, `GET /health/live` |
+| `auth.rs` | Login, register, current user (public + protected routes) |
 | `workspaces.rs` | Workspace CRUD |
 | `projects.rs` | Project CRUD |
 | `modules.rs` | Module CRUD + templates (`POST /modules/from-template`) |
@@ -96,9 +97,20 @@ req1/
 | `app_users.rs` | User account CRUD |
 | `review_packages.rs` | Review package CRUD |
 | `review_assignments.rs` | Review assignment CRUD |
+| `review_comments.rs` | Review comment CRUD |
 | `change_proposals.rs` | Change proposal CRUD |
+| `attachments.rs` | File attachment upload/download/delete |
+| `webhooks.rs` | Webhook CRUD + event dispatch |
+| `lifecycle.rs` | Lifecycle model CRUD |
+| `tests.rs` | Test case and test execution CRUD |
+| `e_signatures.rs` | E-signature creation and listing |
+| `notifications.rs` | Notification listing and read status |
+| `diagrams.rs` | Diagram CRUD |
+| `dashboards.rs` | Dashboard and widget CRUD |
+| `project_templates.rs` | Project template CRUD |
+| `audit.rs` | Audit log listing |
 
-### req1-core Service Layer
+### req1-core Service Layer (34 modules)
 
 | Service | Responsibility |
 |---------|---------------|
@@ -106,18 +118,36 @@ req1/
 | `service/module.rs` | Module CRUD, template cloning |
 | `service/link.rs` | Link CRUD, suspect flag detection |
 | `service/baseline.rs` | Baseline creation, word-level diffing |
+| `service/baseline_set.rs` | Baseline set management |
 | `service/validation_service.rs` | Built-in rules + JavaScript custom validation |
 | `service/publish.rs` | HTML template rendering |
 | `service/view.rs` | Saved view config |
 | `service/comment.rs` | Comment thread management |
 | `service/object_type.rs` | Type constraints + schema validation |
 | `service/app_user.rs` | User management |
+| `service/auth.rs` | Authentication (bcrypt + JWT) |
 | `service/review_package.rs` | Review package lifecycle |
 | `service/review_assignment.rs` | Review assignment lifecycle |
+| `service/review_comment.rs` | Review comment management |
 | `service/change_proposal.rs` | Change proposal lifecycle |
-| `service/baseline_set.rs` | Baseline set management |
 | `service/workspace.rs` | Workspace CRUD |
 | `service/project.rs` | Project CRUD |
+| `service/crud.rs` | Generic CRUD helpers |
+| `service/csv_import.rs` | CSV file import |
+| `service/xlsx_import.rs` | Excel file import |
+| `service/docx_import.rs` | Word document import |
+| `service/attachment.rs` | File attachment management |
+| `service/webhook.rs` | Webhook event dispatch |
+| `service/lifecycle.rs` | Lifecycle model state management |
+| `service/test.rs` | Test case and execution tracking |
+| `service/e_signature.rs` | E-signature creation and verification |
+| `service/notification.rs` | User notification management |
+| `service/mention.rs` | @mention detection and linking |
+| `service/diagram.rs` | Diagram management |
+| `service/dashboard.rs` | Dashboard and widget management |
+| `service/project_template.rs` | Project template management |
+| `service/audit.rs` | Audit log recording |
+| `service/scheduler.rs` | CRON-based script scheduling |
 | `reqif/import.rs` | ReqIF → DB entity mapping (modules, objects, types, links) |
 | `reqif/export.rs` | DB entity → ReqIF document mapping |
 | `reqif/type_map.rs` | Bidirectional ReqIF datatype ↔ entity attribute type conversion |
@@ -133,7 +163,7 @@ C4Component
     title Component Diagram — Axum API (Target)
 
     Container_Boundary(api, "Axum API") {
-        Component(auth, "Auth Module", "openidconnect, argon2, jsonwebtoken", "OIDC login, local auth, JWT issuance, session management [planned]")
+        Component(auth, "Auth Module", "bcrypt, jsonwebtoken", "Local auth, JWT issuance [impl]; OIDC [planned]")
         Component(crud, "CRUD Module", "sea-orm, sqlx", "Object/module/attribute CRUD with history tracking [impl]")
         Component(baseline, "Baseline Module", "sqlx", "Baseline creation, locking, and structured diff queries [impl]")
         Component(trace, "Traceability Module", "sqlx", "Link CRUD, suspect detection, coverage analysis, graph traversal [impl]")
@@ -141,7 +171,7 @@ C4Component
         Component(export, "Export Module", "minijinja, pulldown-cmark", "HTML publishing from templates [impl]; PDF/DOCX [planned]")
         Component(search, "Search Module", "sqlx (PG FTS)", "Full-text search with tsvector/tsquery and GIN indexes [impl]")
         Component(audit, "Audit Module", "sea-orm", "Writes every mutation to history tables with attribute-level granularity [impl]")
-        Component(webhooks, "Webhook Module", "reqwest", "Event dispatch to registered webhook endpoints [planned]")
+        Component(webhooks, "Webhook Module", "reqwest", "Event dispatch to registered webhook endpoints [impl]")
         Component(oslc, "OSLC Module", "JSON-LD, serde", "OSLC Core 3.0 provider + consumer [planned]")
         Component(sysml, "SysML v2 Module", "serde_json", "Import/export SysML v2 requirement elements [planned]")
         Component(scripting, "Script Engine", "deno_core", "Embedded JavaScript (V8) runtime. Triggers, layout scripts, actions. [impl]")
@@ -209,55 +239,56 @@ C4Component
 
 ## 5.5 Key Data Model (Implemented)
 
-21 entities across 23 migrations:
+35 entities across 40 migrations:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ PostgreSQL Schema (implemented — 21 tables)                     │
+│ PostgreSQL Schema (implemented — 35 tables)                     │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  workspace ──< project ──< module ──< object                   │
-│                                │         │                      │
-│                                │         ├── object_history     │
-│                                │         │   (version, JSONB    │
-│                                │         │    attributes,       │
-│                                │         │    changed_by/at,    │
-│                                │         │    change_type)      │
-│                                │         │                      │
-│                                │         ├── object_type (FK)   │
-│                                │         │   (required_attrs,   │
-│                                │         │    attribute_schema, │
-│                                │         │    default_classif.) │
-│                                │         │                      │
-│                                │         ├── comment            │
-│                                │         │   (body, resolved,   │
-│                                │         │    author)           │
-│                                │         │                      │
-│                                │         ├── deleted_at         │
-│                                │         │   (soft delete)      │
-│                                │         │                      │
-│                                │         └──< link ──> object   │
-│                                │              │                 │
-│                                │              ├── link_type (FK)│
-│                                │              ├── suspect_flag  │
-│                                │              └── attributes    │
-│                                │                                │
-│                                ├── attribute_definition         │
-│                                │   (name, data_type,            │
-│                                │    multi_select, enum_values)  │
-│                                │                                │
-│                                ├── script                       │
-│                                │   (type: trigger/layout/action,│
-│                                │    hook_point, source_code)    │
-│                                │                                │
-│                                ├── view                         │
-│                                │   (column_config, filter_config│
-│                                │    sort_config)                │
-│                                │                                │
-│                                └── module config fields         │
-│                                    (prefix, separator, digits,  │
-│                                     required_attributes,        │
-│                                     default_classification)     │
+│  workspace ──< workspace_member                                 │
+│     └──< project ──< module ──< object                         │
+│                         │         │                             │
+│                         │         ├── object_history            │
+│                         │         │   (version, JSONB           │
+│                         │         │    attributes,              │
+│                         │         │    changed_by/at,           │
+│                         │         │    change_type)             │
+│                         │         │                             │
+│                         │         ├── object_type (FK)          │
+│                         │         │   (required_attrs,          │
+│                         │         │    attribute_schema,        │
+│                         │         │    default_classif.)        │
+│                         │         │                             │
+│                         │         ├── comment                   │
+│                         │         │   (body, resolved, author)  │
+│                         │         │                             │
+│                         │         ├── deleted_at (soft delete)  │
+│                         │         │                             │
+│                         │         └──< link ──> object          │
+│                         │              │                        │
+│                         │              ├── link_type (FK)       │
+│                         │              ├── suspect_flag         │
+│                         │              └── attributes           │
+│                         │                                       │
+│                         ├── attribute_definition                │
+│                         │   (name, data_type,                   │
+│                         │    multi_select, enum_values)         │
+│                         │                                       │
+│                         ├── script ──< script_execution         │
+│                         │   (type: trigger/layout/action,       │
+│                         │    hook_point, source_code,           │
+│                         │    cron_schedule, priority)           │
+│                         │                                       │
+│                         ├── view                                │
+│                         │   (column_config, filter_config,      │
+│                         │    sort_config)                       │
+│                         │                                       │
+│                         ├── module_permission                   │
+│                         │                                       │
+│                         └── module config fields                │
+│                             (prefix, separator, digits,         │
+│                              publish_template)                  │
 │                                                                 │
 │  baseline ──< baseline_entry                                    │
 │     │          (object_id, version)  ── points to ──>           │
@@ -265,10 +296,11 @@ C4Component
 │     └── baseline_set (FK)                                       │
 │          (name, version)                                        │
 │                                                                 │
-│  app_user (email, display_name, role, active)                   │
+│  app_user (email, display_name, role, active, password_hash)    │
 │                                                                 │
 │  review_package ──< review_assignment                           │
-│    (name, status)      (user, status)                           │
+│    (name, status)    │ (user, status)                           │
+│                      └──< review_comment                        │
 │                                                                 │
 │  change_proposal (title, status, diff_data JSONB)               │
 │                                                                 │
@@ -276,5 +308,25 @@ C4Component
 │              storage_path, sha256)                              │
 │                                                                 │
 │  link_type (name, description)                                  │
+│                                                                 │
+│  lifecycle_model (states, transitions, color_config)            │
+│                                                                 │
+│  test_case ──< test_execution                                   │
+│    (title, steps)   (status: pass/fail/blocked)                 │
+│                                                                 │
+│  e_signature (user, action, timestamp, audit_record)            │
+│                                                                 │
+│  notification (user, type, read, message)                       │
+│                                                                 │
+│  webhook (url, events, secret, active)                          │
+│                                                                 │
+│  diagram (name, type, content JSONB)                            │
+│                                                                 │
+│  dashboard ──< dashboard_widget                                 │
+│    (name, layout)   (type, config JSONB)                        │
+│                                                                 │
+│  project_template (name, config JSONB)                          │
+│                                                                 │
+│  audit_log (user, action, entity, timestamp)                    │
 └─────────────────────────────────────────────────────────────────┘
 ```

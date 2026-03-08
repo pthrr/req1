@@ -24,8 +24,8 @@ crates/
   req1-core/     Business logic — services, scripting (deno_core/V8), validation
   req1-reqif/    ReqIF 1.2 XML library (serialize/deserialize, .reqifz archives)
   req1-cli/      CLI client over REST API (clap)
-entity/          Sea-ORM entity models (36 models)
-migration/       Sea-ORM migrations (41 migrations, auto-run on startup)
+entity/          Sea-ORM entity models (35 models)
+migration/       Sea-ORM migrations (40 migrations, auto-run on startup)
 frontend/        React SPA (Vite + TypeScript + AG Grid + TipTap)
 docs/            Arc42 architecture docs + SRS specification
 ```

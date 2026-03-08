@@ -8,16 +8,31 @@ Open-source requirements management tool built to replace IBM DOORS Classic. Mod
 - **Typed attributes** — string, int, float, bool, enum (single/multi), date, rich text, user reference
 - **Directed traceability links** — named typed links (satisfies, derives-from, verifies, etc.) with suspect detection
 - **Immutable baselines** — snapshots with word-level structured diffing
-- **JavaScript scripting** — triggers (pre_save, pre_delete, validate), layout scripts, actions
+- **JavaScript scripting** — triggers (pre_save, pre_delete, validate), layout scripts, actions, scheduled execution
 - **Validation** — built-in structural rules + custom JavaScript rules
 - **Full-text search** — PostgreSQL tsvector with GIN indexes
 - **Impact analysis** — BFS graph traversal with D3 force-directed visualization
 - **Coverage metrics** — upstream/downstream link coverage per module
 - **ReqIF import/export** — OMG ReqIF 1.2 import/export via API and CLI (.reqif and .reqifz)
+- **Multi-format import** — CSV, XLSX, and DOCX import
 - **HTML publishing** — Minijinja templates with configurable numbering
 - **Saved views** — per-module column/filter/sort configurations
 - **Object types** — schema-enforced typed objects with required attributes
 - **Comments** — per-object discussion threads with resolve/unresolve
+- **Authentication** — local auth (bcrypt + JWT) with protected API routes
+- **Review workflows** — review packages, assignments, and review comments
+- **Change proposals** — structured change tracking with diff data
+- **Lifecycle models** — configurable state models with transitions
+- **Test engineering** — test cases and test execution tracking
+- **E-signatures** — re-authentication on workflow transitions with audit records
+- **Notifications & mentions** — user notifications with @mention support
+- **Webhooks** — event dispatch to registered endpoints
+- **Audit logging** — immutable audit trail for compliance
+- **Dashboards** — configurable dashboards with widgets
+- **Diagrams** — diagram storage and management
+- **Project templates** — reusable project scaffolding
+- **Attachments** — file attachment support with content hashing
+- **OpenAPI / Swagger UI** — auto-generated API documentation
 - **Soft delete** — recoverable object deletion
 - **CLI** — headless automation via `req1-cli`
 
@@ -36,13 +51,13 @@ req1/
 │   │   │   ├── state.rs      # Shared application state
 │   │   │   ├── error.rs      # Error types
 │   │   │   ├── middleware.rs  # Cache-Control middleware for static assets
-│   │   │   └── routes/       # 22 route modules (one per resource)
+│   │   │   └── routes/       # 34 route modules (one per resource)
 │   │   └── tests/
 │   │       └── api_integration.rs
 │   │
 │   ├── req1-core/            # Business logic (no HTTP concerns)
 │   │   └── src/
-│   │       ├── service/      # 16 service modules (CRUD + business rules)
+│   │       ├── service/      # 34 service modules (CRUD + business rules)
 │   │       ├── scripting/    # JavaScript engine (V8 via deno_core) (triggers, layout, actions)
 │   │       ├── validation.rs # Built-in validation rules
 │   │       ├── baseline.rs   # Baseline snapshot + word-level diff
@@ -57,8 +72,8 @@ req1/
 │   └── req1-reqif/           # ReqIF 1.2 XML library (serialize, deserialize, .reqifz archives)
 │       └── src/lib.rs
 │
-├── entity/                   # Sea-ORM entities (21 database models)
-├── migration/                # Sea-ORM migrations (23 sequential)
+├── entity/                   # Sea-ORM entities (35 database models)
+├── migration/                # Sea-ORM migrations (40 sequential)
 ├── frontend/                 # React SPA (Vite, AG Grid, D3)
 ├── docs/                     # Architecture documentation (arc42)
 ├── Dockerfile                # Multi-stage production build (bun + cargo + debian-slim)
@@ -137,6 +152,10 @@ The container uses `network_mode: host` and `pid: host`, and mounts the Docker s
 | `task test:backend` | Backend integration tests (requires running DB) |
 | `task test:e2e` | Full E2E cycle (reset, build, start, Playwright, cleanup) |
 | `task ci` | Full CI check (fmt + clippy + tsc + backend tests + E2E) |
+| `task openapi:spec` | Export OpenAPI spec from running server |
+| `task openapi:types` | Generate TypeScript types from OpenAPI spec |
+| `task openapi:generate` | Export spec + generate TS types |
+| `task frontend:build` | Production build of frontend |
 | `task db` | Start PostgreSQL + Redis containers |
 | `task db:reset` | Drop all tables and re-run migrations |
 | `task db:migrate` | Run pending migrations only |
@@ -186,7 +205,7 @@ pub fn routes() -> Router<AppState> {
 
 ### Database
 
-PostgreSQL 16. Migrations are managed by Sea-ORM and run automatically on server startup. 21 tables across 23 migrations.
+PostgreSQL 16. Migrations are managed by Sea-ORM and run automatically on server startup. 35 tables across 40 migrations.
 
 ## Tech Stack
 
@@ -194,7 +213,9 @@ PostgreSQL 16. Migrations are managed by Sea-ORM and run automatically on server
 |-------|-----------|
 | API server | Rust, Axum 0.8, Tower |
 | ORM | Sea-ORM 1.x (PostgreSQL) |
+| Auth | bcrypt + jsonwebtoken (JWT) |
 | Scripting | deno_core (V8 JavaScript runtime) |
+| API docs | utoipa + Swagger UI |
 | Templates | Minijinja |
 | Frontend | React 19, TypeScript, Vite 6 |
 | Grid | AG Grid 33 |
@@ -342,12 +363,14 @@ Returns a report with issues (severity: error, warning, info), object count, and
 |--------|------|-------------|
 | GET | `/api/v1/modules/{module_id}/publish?format=html` | Publish module to HTML |
 
-### ReqIF Import/Export
+### Import / Export
 
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/v1/projects/{project_id}/reqif/import` | Import a `.reqif` or `.reqifz` file (multipart form data) |
 | GET | `/api/v1/modules/{module_id}/reqif/export?format=reqif` | Export module as ReqIF XML (or `?format=reqifz` for ZIP archive) |
+
+Additional import formats supported via service layer: CSV, XLSX, DOCX.
 
 Import returns `201 Created` with JSON summary: `module_id`, `objects_created`, `links_created`, `attribute_definitions_created`, `object_types_created`, `link_types_created`.
 
@@ -372,6 +395,14 @@ Export returns binary with `Content-Disposition: attachment` header.
 | GET | `/api/v1/objects/{object_id}/comments/{id}` | Get comment |
 | PATCH | `/api/v1/objects/{object_id}/comments/{id}` | Update / resolve comment |
 | DELETE | `/api/v1/objects/{object_id}/comments/{id}` | Delete comment |
+
+### Authentication
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/auth/login` | Login (returns JWT) |
+| POST | `/api/v1/auth/register` | Register new user |
+| GET | `/api/v1/auth/me` | Get current user (protected) |
 
 ### Users
 
@@ -413,6 +444,106 @@ Export returns binary with `Content-Disposition: attachment` header.
 | PATCH | `/api/v1/modules/{module_id}/change-proposals/{id}` | Update change proposal |
 | DELETE | `/api/v1/modules/{module_id}/change-proposals/{id}` | Delete change proposal |
 
+### Review Comments
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/review-packages/{package_id}/comments` | List review comments |
+| POST | `/api/v1/review-packages/{package_id}/comments` | Create review comment |
+| GET | `/api/v1/review-packages/{package_id}/comments/{id}` | Get review comment |
+| PATCH | `/api/v1/review-packages/{package_id}/comments/{id}` | Update review comment |
+| DELETE | `/api/v1/review-packages/{package_id}/comments/{id}` | Delete review comment |
+
+### Attachments
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/attachments` | List attachments |
+| POST | `/api/v1/attachments` | Upload attachment |
+| GET | `/api/v1/attachments/{id}` | Get attachment |
+| DELETE | `/api/v1/attachments/{id}` | Delete attachment |
+
+### Webhooks
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/webhooks` | List webhooks |
+| POST | `/api/v1/webhooks` | Create webhook |
+| GET | `/api/v1/webhooks/{id}` | Get webhook |
+| PATCH | `/api/v1/webhooks/{id}` | Update webhook |
+| DELETE | `/api/v1/webhooks/{id}` | Delete webhook |
+
+### Lifecycle
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/lifecycle-models` | List lifecycle models |
+| POST | `/api/v1/lifecycle-models` | Create lifecycle model |
+| GET | `/api/v1/lifecycle-models/{id}` | Get lifecycle model |
+| PATCH | `/api/v1/lifecycle-models/{id}` | Update lifecycle model |
+| DELETE | `/api/v1/lifecycle-models/{id}` | Delete lifecycle model |
+
+### Tests
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/test-cases` | List test cases |
+| POST | `/api/v1/test-cases` | Create test case |
+| GET | `/api/v1/test-cases/{id}` | Get test case |
+| PATCH | `/api/v1/test-cases/{id}` | Update test case |
+| DELETE | `/api/v1/test-cases/{id}` | Delete test case |
+
+### E-Signatures
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/e-signatures` | List e-signatures |
+| POST | `/api/v1/e-signatures` | Create e-signature |
+| GET | `/api/v1/e-signatures/{id}` | Get e-signature |
+
+### Notifications
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/notifications` | List notifications |
+| PATCH | `/api/v1/notifications/{id}` | Update notification (mark read) |
+
+### Diagrams
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/diagrams` | List diagrams |
+| POST | `/api/v1/diagrams` | Create diagram |
+| GET | `/api/v1/diagrams/{id}` | Get diagram |
+| PATCH | `/api/v1/diagrams/{id}` | Update diagram |
+| DELETE | `/api/v1/diagrams/{id}` | Delete diagram |
+
+### Dashboards
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/dashboards` | List dashboards |
+| POST | `/api/v1/dashboards` | Create dashboard |
+| GET | `/api/v1/dashboards/{id}` | Get dashboard |
+| PATCH | `/api/v1/dashboards/{id}` | Update dashboard |
+| DELETE | `/api/v1/dashboards/{id}` | Delete dashboard |
+
+### Project Templates
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/project-templates` | List project templates |
+| POST | `/api/v1/project-templates` | Create project template |
+| GET | `/api/v1/project-templates/{id}` | Get project template |
+| PATCH | `/api/v1/project-templates/{id}` | Update project template |
+| DELETE | `/api/v1/project-templates/{id}` | Delete project template |
+
+### Audit
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/audit-logs` | List audit log entries |
+
 ### Traceability
 
 | Method | Path | Description |
@@ -429,6 +560,13 @@ Optional query parameter: `link_type_id` to filter by link type.
 | GET | `/api/v1/object-impact/{id}?direction={dir}&max_depth={n}` | BFS impact traversal |
 
 Parameters: `direction` (forward, backward, both), `max_depth` (int).
+
+### OpenAPI
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/docs/openapi.json` | OpenAPI 3.0 specification |
+| GET | `/swagger-ui/` | Interactive Swagger UI |
 
 ## CLI
 
@@ -514,12 +652,19 @@ req1 resolve-suspect --link-id <uuid>
 req1 publish --module-id <uuid> --format html --output module.html
 ```
 
+### Reorder
+
+```bash
+req1 reorder --module-id <uuid> --object-id <uuid> --position 3
+```
+
 ### Import
 
 ```bash
 req1 import --project-id <uuid> --file requirements.reqif
 req1 import --project-id <uuid> --file requirements.reqifz
 req1 import --project-id <uuid> --file data.reqif --format reqif
+req1 import --project-id <uuid> --file data.csv --format csv
 ```
 
 ### Export
@@ -527,6 +672,18 @@ req1 import --project-id <uuid> --file data.reqif --format reqif
 ```bash
 req1 export --module-id <uuid> --output exported.reqif
 req1 export --module-id <uuid> --output exported.reqifz --format reqifz
+```
+
+### Seed Data
+
+```bash
+req1 seed-data --project-id <uuid>    # Generate sample data for testing
+```
+
+### Run Tests
+
+```bash
+req1 run-tests --module-id <uuid>     # Execute test suites
 ```
 
 ### Output Formats
