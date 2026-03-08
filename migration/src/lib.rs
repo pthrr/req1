@@ -39,6 +39,7 @@ mod m20260221_000036_e_signature;
 mod m20260221_000037_docx_import_tracking;
 mod m20260221_000038_dashboard_tables;
 mod m20260221_000039_project_template;
+mod m20260221_000040_seed_admin_user;
 
 pub struct Migrator;
 
@@ -85,6 +86,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260221_000037_docx_import_tracking::Migration),
             Box::new(m20260221_000038_dashboard_tables::Migration),
             Box::new(m20260221_000039_project_template::Migration),
+            Box::new(m20260221_000040_seed_admin_user::Migration),
         ]
     }
 }

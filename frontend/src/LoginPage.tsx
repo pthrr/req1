@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "./AuthContext";
 import { useTheme } from "./ThemeContext";
@@ -13,6 +13,24 @@ export function LoginPage() {
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [devAutoLogin, setDevAutoLogin] = useState(import.meta.env.DEV);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    let cancelled = false;
+    setLoading(true);
+    login("admin@localhost", "admin")
+      .then(() => {
+        if (!cancelled) navigate("/");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDevAutoLogin(false);
+          setLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +49,24 @@ export function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (devAutoLogin) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100vh",
+          background: theme.colors.bg,
+          fontFamily: theme.fontFamily,
+          color: theme.colors.textMuted,
+        }}
+      >
+        Signing in as dev admin...
+      </div>
+    );
+  }
 
   return (
     <div

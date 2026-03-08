@@ -46,7 +46,8 @@
       "WebFetch(domain:www.omg.org)",
       "Bash(ls:*)",
       "Bash(npx vite build:*)",
-      "Bash(git status:*)"
+      "Bash(git status:*)",
+      "Bash(npx playwright test:*)"
     ]
   }
 }

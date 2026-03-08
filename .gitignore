@@ -25,5 +25,8 @@ Thumbs.db
 # Generated
 openapi.json
 
+# Playwright
+test-results/
+
 # Docker volumes
 pgdata/

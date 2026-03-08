@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api/client";
 import { theme } from "./theme";
 
@@ -19,11 +19,20 @@ const PREVIEW_FORMATS = [
   { value: "docx", label: "Word (DOCX)" },
 ];
 
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem("token");
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  return headers;
+}
+
 export function PublishPreviewPanel({ moduleId, onClose }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [format, setFormat] = useState("html");
   const [textContent, setTextContent] = useState<string | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const isHtml = format === "html";
   const isPdf = format === "pdf";
@@ -32,23 +41,40 @@ export function PublishPreviewPanel({ moduleId, onClose }: Props) {
   const isBinary = isPdf || isXlsx || isDocx;
   const isIframe = isHtml || isPdf;
 
+  // Cleanup blob URLs on unmount or format change
   useEffect(() => {
-    if (isHtml || isBinary) {
-      setTextContent(null);
-      return;
-    }
+    return () => {
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [blobUrl]);
+
+  useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(api.getPublishUrl(moduleId, format))
+    setError(null);
+    setTextContent(null);
+    if (blobUrl) {
+      URL.revokeObjectURL(blobUrl);
+      setBlobUrl(null);
+    }
+
+    fetch(api.getPublishUrl(moduleId, format), { headers: authHeaders() })
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
+        if (isIframe || isBinary) return res.blob();
         return res.text();
       })
-      .then((text) => {
-        if (!cancelled) setTextContent(text);
+      .then((data) => {
+        if (cancelled) return;
+        if (data instanceof Blob) {
+          const url = URL.createObjectURL(data);
+          setBlobUrl(url);
+        } else {
+          setTextContent(data);
+        }
       })
       .catch((err) => {
-        if (!cancelled) setTextContent(`Error: ${err.message}`);
+        if (!cancelled) setError(err.message);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -56,11 +82,19 @@ export function PublishPreviewPanel({ moduleId, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [moduleId, format, isHtml, isBinary]);
+  }, [moduleId, format]);
 
   const handlePrint = () => {
     iframeRef.current?.contentWindow?.print();
   };
+
+  const handleDownload = useCallback((filename: string) => {
+    if (!blobUrl) return;
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    a.click();
+  }, [blobUrl]);
 
   return (
     <div
@@ -119,30 +153,50 @@ export function PublishPreviewPanel({ moduleId, onClose }: Props) {
           <div style={{ display: "flex", gap: theme.spacing.sm }}>
             {isHtml && <button onClick={handlePrint}>Print</button>}
             {isXlsx && (
-              <a
-                href={api.getPublishUrl(moduleId, "xlsx")}
-                download="objects.xlsx"
-                style={{ textDecoration: "none" }}
-              >
-                <button type="button">Download</button>
-              </a>
+              <button type="button" onClick={() => handleDownload("objects.xlsx")}>
+                Download
+              </button>
             )}
             {isDocx && (
-              <a
-                href={api.getPublishUrl(moduleId, "docx")}
-                download="document.docx"
-                style={{ textDecoration: "none" }}
-              >
-                <button type="button">Download</button>
-              </a>
+              <button type="button" onClick={() => handleDownload("document.docx")}>
+                Download
+              </button>
             )}
             <button onClick={onClose}>Close</button>
           </div>
         </div>
-        {isIframe ? (
+        {error ? (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: `1px solid ${theme.colors.borderLight}`,
+              borderRadius: theme.borderRadius,
+              color: theme.colors.error,
+            }}
+          >
+            {error}
+          </div>
+        ) : loading ? (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: `1px solid ${theme.colors.borderLight}`,
+              borderRadius: theme.borderRadius,
+              color: theme.colors.textMuted,
+            }}
+          >
+            Loading...
+          </div>
+        ) : isIframe && blobUrl ? (
           <iframe
             ref={iframeRef}
-            src={api.getPublishUrl(moduleId, format)}
+            src={blobUrl}
             style={{
               flex: 1,
               border: `1px solid ${theme.colors.borderLight}`,
@@ -179,7 +233,7 @@ export function PublishPreviewPanel({ moduleId, onClose }: Props) {
               background: theme.colors.bgCode ?? "#f8f9fa",
             }}
           >
-            {loading ? "Loading..." : textContent}
+            {textContent}
           </pre>
         )}
       </div>

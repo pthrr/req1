@@ -21,6 +21,8 @@
             pkg-config
             openssl
 
+            python3Packages.weasyprint
+
             bun
             go-task
             curl
